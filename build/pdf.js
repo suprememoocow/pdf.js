@@ -1477,13 +1477,14 @@ var CanvasGraphics = (function canvasGraphics() {
       var charSpacing = current.charSpacing;
       var wordSpacing = current.wordSpacing;
       var textHScale = current.textHScale;
+      var fontMatrix = font.fontMatrix || IDENTITY_MATRIX;
+      var textHScale2 = textHScale * fontMatrix[0];
       var glyphsLength = glyphs.length;
       if (font.coded) {
         ctx.save();
         ctx.transform.apply(ctx, current.textMatrix);
         ctx.translate(current.x, current.y);
 
-        var fontMatrix = font.fontMatrix || IDENTITY_MATRIX;
         ctx.scale(1 / textHScale, 1);
         for (var i = 0; i < glyphsLength; ++i) {
 
@@ -1504,7 +1505,7 @@ var CanvasGraphics = (function canvasGraphics() {
           var width = transformed[0] * fontSize + charSpacing;
 
           ctx.translate(width, 0);
-          current.x += width;
+          current.x += width * textHScale2;
 
         }
         ctx.restore();
@@ -1513,7 +1514,7 @@ var CanvasGraphics = (function canvasGraphics() {
         ctx.transform.apply(ctx, current.textMatrix);
         ctx.scale(1, -1);
         ctx.translate(current.x, -1 * current.y);
-        ctx.transform.apply(ctx, font.fontMatrix || IDENTITY_MATRIX);
+        ctx.transform.apply(ctx, fontMatrix);
 
         ctx.scale(1 / textHScale, 1);
 
@@ -1532,7 +1533,7 @@ var CanvasGraphics = (function canvasGraphics() {
 
           // TODO actual characters can be extracted from the glyph.unicode
         }
-        current.x += width;
+        current.x += width * textHScale2;
 
         ctx.restore();
       }
@@ -1542,12 +1543,13 @@ var CanvasGraphics = (function canvasGraphics() {
       var ctx = this.ctx;
       var current = this.current;
       var fontSize = current.fontSize;
-      var textHScale = current.textHScale;
+      var textHScale2 = current.textHScale *
+        (current.font.fontMatrix || IDENTITY_MATRIX)[0];
       var arrLength = arr.length;
       for (var i = 0; i < arrLength; ++i) {
         var e = arr[i];
         if (isNum(e)) {
-          current.x -= e * 0.001 * fontSize * textHScale;
+          current.x -= e * 0.001 * fontSize * textHScale2;
         } else if (isString(e)) {
           this.showText(e);
         } else {
@@ -11556,6 +11558,8 @@ var PartialEvaluator = (function partialEvaluator() {
           var baseName = encoding.get('BaseEncoding');
           if (baseName)
             baseEncoding = Encodings[baseName.name];
+          else
+            hasEncoding = false; // base encoding was not provided
 
           // Load the differences between the base and original
           if (encoding.has('Differences')) {
@@ -12706,6 +12710,7 @@ var Font = (function Font() {
     this.hasEncoding = properties.hasEncoding;
 
     this.fontMatrix = properties.fontMatrix;
+    this.widthMultiplier = 1.0;
     if (properties.type == 'Type3')
       return;
 
@@ -12768,6 +12773,8 @@ var Font = (function Font() {
 
     this.data = data;
     this.fontMatrix = properties.fontMatrix;
+    this.widthMultiplier = !properties.fontMatrix ? 1.0 :
+      1.0 / properties.fontMatrix[0];
     this.encoding = properties.baseEncoding;
     this.hasShortCmap = properties.hasShortCmap;
     this.loadedName = getUniqueName();
@@ -14073,10 +14080,12 @@ var Font = (function Font() {
       if (typeof unicodeChars === 'number')
         unicodeChars = String.fromCharCode(unicodeChars);
 
+      width = (isNum(width) ? width : this.defaultWidth) * this.widthMultiplier;
+
       return {
         fontChar: String.fromCharCode(unicode),
         unicode: unicodeChars,
-        width: isNum(width) ? width : this.defaultWidth,
+        width: width,
         codeIRQueue: codeIRQueue
       };
     },
@@ -19885,7 +19894,8 @@ var GlyphsUnicode = {
   zretroflexhook: 0x0290,
   zstroke: 0x01B6,
   zuhiragana: 0x305A,
-  zukatakana: 0x30BA
+  zukatakana: 0x30BA,
+  '.notdef': 0x0000
 };
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
