@@ -1517,7 +1517,7 @@ var CanvasGraphics = (function canvasGraphics() {
       ctx.scale(1, -1);
       ctx.translate(current.x, -1 * current.y);
       ctx.transform.apply(ctx, fontMatrix);
-      ctx.scale(1 / textHScale, 1);
+      ctx.scale(textHScale, 1);
     },
     getTextGeometry: function canvasGetTextGeometry() {
       var geometry = {};
@@ -1593,7 +1593,7 @@ var CanvasGraphics = (function canvasGraphics() {
         ctx.transform.apply(ctx, current.textMatrix);
         ctx.translate(current.x, current.y);
 
-        ctx.scale(1 / textHScale, 1);
+        ctx.scale(textHScale, 1);
         for (var i = 0; i < glyphsLength; ++i) {
 
           var glyph = glyphs[i];
@@ -13800,10 +13800,18 @@ var Font = (function Font() {
 
         var cidToGidMap = properties.cidToGidMap || [];
         var gidToCidMap = [0];
-        for (var j = cidToGidMap.length - 1; j >= 0; j--) {
-          var gid = cidToGidMap[j];
-          if (gid)
-            gidToCidMap[gid] = j;
+        if (cidToGidMap.length > 0) {
+          for (var j = cidToGidMap.length - 1; j >= 0; j--) {
+            var gid = cidToGidMap[j];
+            if (gid)
+              gidToCidMap[gid] = j;
+          }
+          // filling the gaps using CID above the CIDs currently used in font
+          var nextCid = cidToGidMap.length;
+          for (var i = 1; i < numGlyphs; i++) {
+            if (!gidToCidMap[i])
+              gidToCidMap[i] = nextCid++;
+          }
         }
 
         var glyphs = [], ids = [];
