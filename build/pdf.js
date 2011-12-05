@@ -2605,20 +2605,29 @@ var XRef = (function xRefXRef() {
     readXRef: function readXref(startXRef) {
       var stream = this.stream;
       stream.pos = startXRef;
-      var parser = new Parser(new Lexer(stream), true);
-      var obj = parser.getObj();
-      // parse an old-style xref table
-      if (isCmd(obj, 'xref'))
-        return this.readXRefTable(parser);
-      // parse an xref stream
-      if (isInt(obj)) {
-        if (!isInt(parser.getObj()) ||
-            !isCmd(parser.getObj(), 'obj') ||
-            !isStream(obj = parser.getObj())) {
-          error('Invalid XRef stream');
+
+      try {
+        var parser = new Parser(new Lexer(stream), true);
+        var obj = parser.getObj();
+
+        // parse an old-style xref table
+        if (isCmd(obj, 'xref'))
+          return this.readXRefTable(parser);
+
+        // parse an xref stream
+        if (isInt(obj)) {
+          if (!isInt(parser.getObj()) ||
+              !isCmd(parser.getObj(), 'obj') ||
+              !isStream(obj = parser.getObj())) {
+            error('Invalid XRef stream');
+          }
+          return this.readXRefStream(obj);
         }
-        return this.readXRefStream(obj);
+      } catch (e) {
+        log('Reading of the xref table/stream failed: ' + e);
       }
+
+      warn('Indexing all PDF objects');
       return this.indexObjects();
     },
     getEntry: function xRefGetEntry(i) {
@@ -23503,7 +23512,8 @@ var Parser = (function parserParser() {
           return new PredictorStream(new FlateStream(stream), params);
         }
         return new FlateStream(stream);
-      } else if (name == 'LZWDecode' || name == 'LZW') {
+      }
+      if (name == 'LZWDecode' || name == 'LZW') {
         var earlyChange = 1;
         if (params) {
           if (params.has('EarlyChange'))
@@ -23512,18 +23522,21 @@ var Parser = (function parserParser() {
             new LZWStream(stream, earlyChange), params);
         }
         return new LZWStream(stream, earlyChange);
-      } else if (name == 'DCTDecode' || name == 'DCT') {
+      }
+      if (name == 'DCTDecode' || name == 'DCT') {
         var bytes = stream.getBytes(length);
         return new JpegStream(bytes, stream.dict, this.xref);
-      } else if (name == 'ASCII85Decode' || name == 'A85') {
-        return new Ascii85Stream(stream);
-      } else if (name == 'ASCIIHexDecode' || name == 'AHx') {
-        return new AsciiHexStream(stream);
-      } else if (name == 'CCITTFaxDecode' || name == 'CCF') {
-        return new CCITTFaxStream(stream, params);
-      } else {
-        TODO('filter "' + name + '" not supported yet');
       }
+      if (name == 'ASCII85Decode' || name == 'A85') {
+        return new Ascii85Stream(stream);
+      }
+      if (name == 'ASCIIHexDecode' || name == 'AHx') {
+        return new AsciiHexStream(stream);
+      }
+      if (name == 'CCITTFaxDecode' || name == 'CCF') {
+        return new CCITTFaxStream(stream, params);
+      }
+      TODO('filter "' + name + '" not supported yet');
       return stream;
     }
   };
@@ -23917,6 +23930,11 @@ var Linearization = (function linearizationLinearization() {
 
 'use strict';
 
+var PatternType = {
+  AXIAL: 2,
+  RADIAL: 3
+};
+
 var Pattern = (function patternPattern() {
   // Constructor should define this.getPattern
   function constructor() {
@@ -23942,9 +23960,9 @@ var Pattern = (function patternPattern() {
     var type = dict.get('ShadingType');
 
     switch (type) {
-      case 2:
-      case 3:
-        // both radial and axial shadings are handled by RadialAxial shading
+      case PatternType.AXIAL:
+      case PatternType.RADIAL:
+        // Both radial and axial shadings are handled by RadialAxial shading.
         return new Shadings.RadialAxial(dict, matrix, xref, res, ctx);
       default:
         return new Shadings.Dummy();
@@ -24031,9 +24049,9 @@ Shadings.RadialAxial = (function radialAxialShading() {
     }
 
     var grad;
-    if (type == 2)
+    if (type == PatternType.AXIAL)
       grad = ctx.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
-    else if (type == 3)
+    else if (type == PatternType.RADIAL)
       grad = ctx.createRadialGradient(p0[0], p0[1], r0, p1[0], p1[1], r1);
 
     for (var i = 0, ii = colorStops.length; i < ii; ++i) {
@@ -24047,12 +24065,12 @@ Shadings.RadialAxial = (function radialAxialShading() {
     getIR: function radialAxialShadingGetIR() {
       var coordsArr = this.coordsArr;
       var type = this.shadingType;
-      if (type == 2) {
+      if (type == PatternType.AXIAL) {
         var p0 = [coordsArr[0], coordsArr[1]];
         var p1 = [coordsArr[2], coordsArr[3]];
         var r0 = null;
         var r1 = null;
-      } else if (type == 3) {
+      } else if (type == PatternType.RADIAL) {
         var p0 = [coordsArr[0], coordsArr[1]];
         var p1 = [coordsArr[3], coordsArr[4]];
         var r0 = coordsArr[2];
