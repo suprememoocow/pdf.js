@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '752c319';
+  PDFJS.build = 'bf755f4';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -12979,8 +12979,10 @@ var Font = (function Font() {
 
     this.fontMatrix = properties.fontMatrix;
     this.widthMultiplier = 1.0;
-    if (properties.type == 'Type3')
+    if (properties.type == 'Type3') {
+      this.encoding = properties.baseEncoding;
       return;
+    }
 
     // Trying to fix encoding using glyph CIDSystemInfo.
     this.loadCidToUnicode(properties);
@@ -14366,7 +14368,7 @@ var Font = (function Font() {
       };
     },
 
-    charsToGlyphs: function fonts_chars2Glyphs(chars) {
+    charsToGlyphs: function fonts_charsToGlyphs(chars) {
       var charsCache = this.charsCache;
       var glyphs;
 
