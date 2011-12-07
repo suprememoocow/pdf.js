@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'c3f6dc6';
+  PDFJS.build = '4a92752';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -14358,7 +14358,8 @@ var Font = (function Font() {
           break;
       }
 
-      var unicodeChars = this.toUnicode ? this.toUnicode[charcode] : charcode;
+      var unicodeChars = !('toUnicode' in this) ? charcode :
+        this.toUnicode[charcode] || charcode;
       if (typeof unicodeChars === 'number')
         unicodeChars = String.fromCharCode(unicodeChars);
 
