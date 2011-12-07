@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '9ea8668';
+  PDFJS.build = 'cb592d6';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -575,8 +575,8 @@ var PDFDoc = (function pdfDoc() {
 
         switch (type) {
           case 'JpegStream':
-            var IR = data[2];
-            new JpegImageLoader(id, IR, this.objs);
+            var imageData = data[2];
+            loadJpegStream(id, imageData, this.objs);
             break;
           case 'Font':
             var name = data[2];
@@ -1998,8 +1998,8 @@ var CanvasGraphics = (function canvasGraphics() {
     },
 
     paintJpegXObject: function canvasGraphicsPaintJpegXObject(objId, w, h) {
-      var image = this.objs.get(objId);
-      if (!image) {
+      var domImage = this.objs.get(objId);
+      if (!domImage) {
         error('Dependent image isn\'t ready yet');
       }
 
@@ -2009,7 +2009,6 @@ var CanvasGraphics = (function canvasGraphics() {
       // scale the image to the unit square
       ctx.scale(1 / w, -1 / h);
 
-      var domImage = image.getImage();
       ctx.drawImage(domImage, 0, 0, domImage.width, domImage.height,
                     0, -h, w, h);
 
@@ -2780,7 +2779,7 @@ var XRef = (function xRefXRef() {
           e = parser.getObj();
         }
         // Don't cache streams since they are mutable (except images).
-        if (!isStream(e) || e.getImage)
+        if (!isStream(e) || e instanceof JpegStream)
           this.cache[num] = e;
         return e;
       }
@@ -20320,11 +20319,11 @@ var PDFImage = (function pdfImage() {
       var buf = new Uint8Array(width * height);
 
       if (smask) {
-        if (smask.image.getImage) {
+        if (smask.image.src) {
           // smask is a DOM image
           var tempCanvas = new ScratchCanvas(width, height);
           var tempCtx = tempCanvas.getContext('2d');
-          var domImage = smask.image.getImage();
+          var domImage = smask.image;
           tempCtx.drawImage(domImage, 0, 0, domImage.width, domImage.height,
             0, 0, width, height);
           var data = tempCtx.getImageData(0, 0, width, height).data;
@@ -20419,32 +20418,13 @@ var PDFImage = (function pdfImage() {
   return constructor;
 })();
 
-var JpegImageLoader = (function jpegImage() {
-  function JpegImageLoader(objId, imageData, objs) {
-    var src = 'data:image/jpeg;base64,' + window.btoa(imageData);
-
-    var img = new Image();
-    img.onload = (function jpegImageLoaderOnload() {
-      this.loaded = true;
-
-      objs.resolve(objId, this);
-
-      if (this.onLoad)
-        this.onLoad();
-    }).bind(this);
-    img.src = src;
-    this.domImage = img;
-  }
-
-  JpegImageLoader.prototype = {
-    getImage: function jpegImageLoaderGetImage() {
-      return this.domImage;
-    }
-  };
-
-  return JpegImageLoader;
-})();
-
+function loadJpegStream(id, imageData, objs) {
+  var img = new Image();
+  img.onload = (function jpegImageLoaderOnload() {
+    objs.resolve(id, img);
+  });
+  img.src = 'data:image/jpeg;base64,' + window.btoa(imageData);
+}
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
