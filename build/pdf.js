@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'cb592d6';
+  PDFJS.build = '7ea770f';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -14000,6 +14000,12 @@ var Font = (function Font() {
         }
         properties.hasShortCmap = hasShortCmap;
 
+        // remove glyph references outside range of avaialable glyphs
+        for (var i = 0, ii = ids.length; i < ii; i++) {
+          if (ids[i] >= numGlyphs)
+            ids[i] = 0;
+        }
+
         createGlyphNameMap(glyphs, ids, properties);
         this.glyphNameMap = properties.glyphNameMap;
 
@@ -14317,9 +14323,9 @@ var Font = (function Font() {
           break;
         case 'Type1':
           var glyphName = this.differences[charcode] || this.encoding[charcode];
+          if (!isNum(width))
+            width = this.widths[glyphName];
           if (this.noUnicodeAdaptation) {
-            if (!isNum(width))
-              width = this.widths[glyphName];
             unicode = GlyphsUnicode[glyphName] || charcode;
             break;
           }
