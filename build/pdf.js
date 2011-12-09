@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f5b9217';
+  PDFJS.build = 'd65c38c';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -405,12 +405,17 @@ var PDFDocModel = (function pdfDoc() {
         if (find(stream, 'endobj', 1024))
           startXRef = stream.pos + 6;
       } else {
-        // Find startxref at the end of the file.
-        var start = stream.end - 1024;
-        if (start < 0)
-          start = 0;
-        stream.pos = start;
-        if (find(stream, 'startxref', 1024, true)) {
+        // Find startxref by jumping backward from the end of the file.
+        var step = 1024;
+        var found = false, pos = stream.end;
+        while (!found && pos > 0) {
+          pos -= step - 'startxref'.length;
+          if (pos < 0)
+            pos = 0;
+          stream.pos = pos;
+          found = find(stream, 'startxref', step, true);
+        }
+        if (found) {
           stream.skip(9);
           var ch;
           do {
