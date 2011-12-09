@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'efd82ab';
+  PDFJS.build = 'f5b9217';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -26516,8 +26516,8 @@ var WorkerMessageHandler = {
       } catch (e) {
         // Turn the error into an obj that can be serialized
         e = {
-          message: e.message,
-          stack: e.stack
+          message: typeof e === 'object' ? e.message : e,
+          stack: typeof e === 'object' ? e.stack : null
         };
         handler.send('page_error', {
           pageNum: pageNum,
