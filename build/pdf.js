@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'd65c38c';
+  PDFJS.build = 'd29e39d';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -69,8 +69,8 @@ function getPdf(arg, callback) {
 }
 globalScope.PDFJS.getPdf = getPdf;
 
-var Page = (function pagePage() {
-  function constructor(xref, pageNumber, pageDict, ref) {
+var Page = (function PageClosure() {
+  function Page(xref, pageNumber, pageDict, ref) {
     this.pageNumber = pageNumber;
     this.pageDict = pageDict;
     this.stats = {
@@ -87,7 +87,7 @@ var Page = (function pagePage() {
     this.callback = null;
   }
 
-  constructor.prototype = {
+  Page.prototype = {
     getPageProp: function pageGetPageProp(key) {
       return this.xref.fetchIfRef(this.pageDict.get(key));
     },
@@ -338,7 +338,7 @@ var Page = (function pagePage() {
     }
   };
 
-  return constructor;
+  return Page;
 })();
 
 /**
@@ -351,8 +351,8 @@ var Page = (function pagePage() {
  * need for the `PDFDocModel` anymore and there is only one object on the
  * main thread and not one entire copy on each worker instance.
  */
-var PDFDocModel = (function pdfDoc() {
-  function constructor(arg, callback) {
+var PDFDocModel = (function PDFDocModelClosure() {
+  function PDFDocModel(arg, callback) {
     if (isStream(arg))
       init.call(this, arg);
     else if (isArrayBuffer(arg))
@@ -383,7 +383,7 @@ var PDFDocModel = (function pdfDoc() {
     return true; /* found */
   }
 
-  constructor.prototype = {
+  PDFDocModel.prototype = {
     get linearization() {
       var length = this.stream.length;
       var linearization = false;
@@ -472,11 +472,11 @@ var PDFDocModel = (function pdfDoc() {
     }
   };
 
-  return constructor;
+  return PDFDocModel;
 })();
 
-var PDFDoc = (function pdfDoc() {
-  function constructor(arg, callback) {
+var PDFDoc = (function PDFDocClosure() {
+  function PDFDoc(arg, callback) {
     var stream = null;
     var data = null;
 
@@ -544,7 +544,7 @@ var PDFDoc = (function pdfDoc() {
     }
   }
 
-  constructor.prototype = {
+  PDFDoc.prototype = {
     setupFakeWorker: function() {
       // If we don't use a worker, just post/sendMessage to the main thread.
       var fakeWorker = {
@@ -673,7 +673,7 @@ var PDFDoc = (function pdfDoc() {
     }
   };
 
-  return constructor;
+  return PDFDoc;
 })();
 
 globalScope.PDFJS.PDFDoc = PDFDoc;
@@ -756,24 +756,24 @@ function stringToBytes(str) {
 
 var IDENTITY_MATRIX = [1, 0, 0, 1, 0, 0];
 
-var Util = (function utilUtil() {
-  function constructor() {}
-  constructor.makeCssRgb = function makergb(r, g, b) {
+var Util = (function UtilClosure() {
+  function Util() {}
+  Util.makeCssRgb = function makergb(r, g, b) {
     var ri = (255 * r) | 0, gi = (255 * g) | 0, bi = (255 * b) | 0;
     return 'rgb(' + ri + ',' + gi + ',' + bi + ')';
   };
-  constructor.makeCssCmyk = function makecmyk(c, m, y, k) {
+  Util.makeCssCmyk = function makecmyk(c, m, y, k) {
     c = (new DeviceCmykCS()).getRgb([c, m, y, k]);
     var ri = (255 * c[0]) | 0, gi = (255 * c[1]) | 0, bi = (255 * c[2]) | 0;
     return 'rgb(' + ri + ',' + gi + ',' + bi + ')';
   };
-  constructor.applyTransform = function apply(p, m) {
+  Util.applyTransform = function apply(p, m) {
     var xt = p[0] * m[0] + p[1] * m[2] + m[4];
     var yt = p[0] * m[1] + p[1] * m[3] + m[5];
     return [xt, yt];
   };
 
-  return constructor;
+  return Util;
 })();
 
 var PDFStringTranslateTable = [
@@ -877,7 +877,7 @@ function isPDFFunction(v) {
  * can be set. If any of these happens twice or the data is required before
  * it was set, an exception is throw.
  */
-var Promise = (function promise() {
+var Promise = (function PromiseClosure() {
   var EMPTY_PROMISE = {};
 
   /**
@@ -983,8 +983,8 @@ var TextRenderingMode = {
   ADD_TO_PATH: 7
 };
 
-var CanvasExtraState = (function canvasExtraState() {
-  function constructor(old) {
+var CanvasExtraState = (function CanvasExtraStateClosure() {
+  function CanvasExtraState(old) {
     // Are soft masks and alpha values shapes or opacities?
     this.alphaIsShape = false;
     this.fontSize = 0;
@@ -1018,7 +1018,7 @@ var CanvasExtraState = (function canvasExtraState() {
     this.old = old;
   }
 
-  constructor.prototype = {
+  CanvasExtraState.prototype = {
     clone: function canvasextra_clone() {
       return Object.create(this);
     },
@@ -1027,7 +1027,7 @@ var CanvasExtraState = (function canvasExtraState() {
       this.y = y;
     }
   };
-  return constructor;
+  return CanvasExtraState;
 })();
 
 function ScratchCanvas(width, height) {
@@ -1147,12 +1147,12 @@ function addContextCurrentTransform(ctx) {
   }
 }
 
-var CanvasGraphics = (function canvasGraphics() {
+var CanvasGraphics = (function CanvasGraphicsClosure() {
   // Defines the time the executeIRQueue is going to be executing
   // before it stops and shedules a continue of execution.
   var kExecutionTime = 50;
 
-  function constructor(canvasCtx, objs, textLayer) {
+  function CanvasGraphics(canvasCtx, objs, textLayer) {
     this.ctx = canvasCtx;
     this.current = new CanvasExtraState();
     this.stateStack = [];
@@ -1172,7 +1172,7 @@ var CanvasGraphics = (function canvasGraphics() {
   var NORMAL_CLIP = {};
   var EO_CLIP = {};
 
-  constructor.prototype = {
+  CanvasGraphics.prototype = {
     slowCommands: {
       'stroke': true,
       'closeStroke': true,
@@ -2146,7 +2146,7 @@ var CanvasGraphics = (function canvasGraphics() {
     }
   };
 
-  return constructor;
+  return CanvasGraphics;
 })();
 
 if (!isWorker) {
@@ -2189,34 +2189,34 @@ if (!isWorker) {
 
 'use strict';
 
-var Name = (function nameName() {
-  function constructor(name) {
+var Name = (function NameClosure() {
+  function Name(name) {
     this.name = name;
   }
 
-  constructor.prototype = {
+  Name.prototype = {
   };
 
-  return constructor;
+  return Name;
 })();
 
-var Cmd = (function cmdCmd() {
-  function constructor(cmd) {
+var Cmd = (function CmdClosure() {
+  function Cmd(cmd) {
     this.cmd = cmd;
   }
 
-  constructor.prototype = {
+  Cmd.prototype = {
   };
 
-  return constructor;
+  return Cmd;
 })();
 
-var Dict = (function dictDict() {
-  function constructor() {
+var Dict = (function DictClosure() {
+  function Dict() {
     this.map = Object.create(null);
   }
 
-  constructor.prototype = {
+  Dict.prototype = {
     get: function dictGet(key1, key2, key3) {
       var value;
       if (typeof (value = this.map[key1]) != 'undefined' || key1 in this.map ||
@@ -2246,29 +2246,29 @@ var Dict = (function dictDict() {
     }
   };
 
-  return constructor;
+  return Dict;
 })();
 
-var Ref = (function refRef() {
-  function constructor(num, gen) {
+var Ref = (function RefClosure() {
+  function Ref(num, gen) {
     this.num = num;
     this.gen = gen;
   }
 
-  constructor.prototype = {
+  Ref.prototype = {
   };
 
-  return constructor;
+  return Ref;
 })();
 
 // The reference is identified by number and generation,
 // this structure stores only one instance of the reference.
-var RefSet = (function refSet() {
-  function constructor() {
+var RefSet = (function RefSetClosure() {
+  function RefSet() {
     this.dict = {};
   }
 
-  constructor.prototype = {
+  RefSet.prototype = {
     has: function refSetHas(ref) {
       return !!this.dict['R' + ref.num + '.' + ref.gen];
     },
@@ -2278,18 +2278,18 @@ var RefSet = (function refSet() {
     }
   };
 
-  return constructor;
+  return RefSet;
 })();
 
-var Catalog = (function catalogCatalog() {
-  function constructor(xref) {
+var Catalog = (function CatalogClosure() {
+  function Catalog(xref) {
     this.xref = xref;
     var obj = xref.getCatalogObj();
     assertWellFormed(isDict(obj), 'catalog object is not a dictionary');
     this.catDict = obj;
   }
 
-  constructor.prototype = {
+  Catalog.prototype = {
     get toplevelPagesDict() {
       var pagesObj = this.catDict.get('Pages');
       assertWellFormed(isRef(pagesObj), 'invalid top-level pages reference');
@@ -2439,11 +2439,11 @@ var Catalog = (function catalogCatalog() {
     }
   };
 
-  return constructor;
+  return Catalog;
 })();
 
-var XRef = (function xRefXRef() {
-  function constructor(stream, startXRef, mainXRefEntriesOffset) {
+var XRef = (function XRefClosure() {
+  function XRef(stream, startXRef, mainXRefEntriesOffset) {
     this.stream = stream;
     this.entries = [];
     this.xrefstms = {};
@@ -2464,7 +2464,7 @@ var XRef = (function xRefXRef() {
       error('Invalid root reference');
   }
 
-  constructor.prototype = {
+  XRef.prototype = {
     readXRefTable: function readXRefTable(parser) {
       var obj;
       while (true) {
@@ -2828,7 +2828,7 @@ var XRef = (function xRefXRef() {
     }
   };
 
-  return constructor;
+  return XRef;
 })();
 
 /**
@@ -2837,7 +2837,7 @@ var XRef = (function xRefXRef() {
  * inside of a worker. The `PDFObjects` implements some basic functions to
  * manage these objects.
  */
-var PDFObjects = (function pdfObjects() {
+var PDFObjects = (function PDFObjectsClosure() {
   function PDFObjects() {
     this.objs = {};
   }
@@ -2940,7 +2940,7 @@ var PDFObjects = (function pdfObjects() {
 
 'use strict';
 
-var PDFFunction = (function pdfFunction() {
+var PDFFunction = (function PDFFunctionClosure() {
   var CONSTRUCT_SAMPLED = 0;
   var CONSTRUCT_INTERPOLATED = 2;
   var CONSTRUCT_STICHED = 3;
@@ -10329,13 +10329,13 @@ var CIDToUnicodeMaps = {
 
 'use strict';
 
-var ColorSpace = (function colorSpaceColorSpace() {
+var ColorSpace = (function ColorSpaceClosure() {
   // Constructor should define this.numComps, this.defaultColor, this.name
-  function constructor() {
+  function ColorSpace() {
     error('should not call ColorSpace constructor');
   }
 
-  constructor.prototype = {
+  ColorSpace.prototype = {
     // Input: array of size numComps representing color component values
     // Output: array of rgb values, each value ranging from [0.1]
     getRgb: function colorSpaceGetRgb(color) {
@@ -10348,15 +10348,15 @@ var ColorSpace = (function colorSpaceColorSpace() {
     }
   };
 
-  constructor.parse = function colorSpaceParse(cs, xref, res) {
-    var IR = constructor.parseToIR(cs, xref, res);
+  ColorSpace.parse = function colorSpaceParse(cs, xref, res) {
+    var IR = ColorSpace.parseToIR(cs, xref, res);
     if (IR instanceof AlternateCS)
       return IR;
 
-    return constructor.fromIR(IR);
+    return ColorSpace.fromIR(IR);
   };
 
-  constructor.fromIR = function colorSpaceFromIR(IR) {
+  ColorSpace.fromIR = function colorSpaceFromIR(IR) {
     var name = isArray(IR) ? IR[0] : IR;
 
     switch (name) {
@@ -10389,7 +10389,7 @@ var ColorSpace = (function colorSpaceColorSpace() {
     return null;
   };
 
-  constructor.parseToIR = function colorSpaceParseToIR(cs, xref, res) {
+  ColorSpace.parseToIR = function colorSpaceParseToIR(cs, xref, res) {
     if (isName(cs)) {
       var colorSpaces = xref.fetchIfRef(res.get('ColorSpace'));
       if (isDict(colorSpaces)) {
@@ -10481,7 +10481,7 @@ var ColorSpace = (function colorSpaceColorSpace() {
     return null;
   };
 
-  return constructor;
+  return ColorSpace;
 })();
 
 /**
@@ -10490,8 +10490,8 @@ var ColorSpace = (function colorSpaceColorSpace() {
  * Both color spaces use a tinting function to convert colors to a base color
  * space.
  */
-var AlternateCS = (function alternateCS() {
-  function constructor(numComps, base, tintFn) {
+var AlternateCS = (function AlternateCSClosure() {
+  function AlternateCS(numComps, base, tintFn) {
     this.name = 'Alternate';
     this.numComps = numComps;
     this.defaultColor = [];
@@ -10501,7 +10501,7 @@ var AlternateCS = (function alternateCS() {
     this.tintFn = tintFn;
   }
 
-  constructor.prototype = {
+  AlternateCS.prototype = {
     getRgb: function altcs_getRgb(color) {
       var tinted = this.tintFn(color);
       return this.base.getRgb(tinted);
@@ -10529,21 +10529,21 @@ var AlternateCS = (function alternateCS() {
     }
   };
 
-  return constructor;
+  return AlternateCS;
 })();
 
-var PatternCS = (function patternCS() {
-  function constructor(baseCS) {
+var PatternCS = (function PatternCSClosure() {
+  function PatternCS(baseCS) {
     this.name = 'Pattern';
     this.base = baseCS;
   }
-  constructor.prototype = {};
+  PatternCS.prototype = {};
 
-  return constructor;
+  return PatternCS;
 })();
 
-var IndexedCS = (function indexedCS() {
-  function constructor(base, highVal, lookup) {
+var IndexedCS = (function IndexedCSClosure() {
+  function IndexedCS(base, highVal, lookup) {
     this.name = 'Indexed';
     this.numComps = 1;
     this.defaultColor = [0];
@@ -10566,7 +10566,7 @@ var IndexedCS = (function indexedCS() {
     this.lookup = lookupArray;
   }
 
-  constructor.prototype = {
+  IndexedCS.prototype = {
     getRgb: function indexcs_getRgb(color) {
       var numComps = this.base.numComps;
       var start = color[0] * numComps;
@@ -10595,17 +10595,17 @@ var IndexedCS = (function indexedCS() {
       return base.getRgbBuffer(baseBuf, 8);
     }
   };
-  return constructor;
+  return IndexedCS;
 })();
 
-var DeviceGrayCS = (function deviceGrayCS() {
-  function constructor() {
+var DeviceGrayCS = (function DeviceGrayCSClosure() {
+  function DeviceGrayCS() {
     this.name = 'DeviceGray';
     this.numComps = 1;
     this.defaultColor = [0];
   }
 
-  constructor.prototype = {
+  DeviceGrayCS.prototype = {
     getRgb: function graycs_getRgb(color) {
       var c = color[0];
       return [c, c, c];
@@ -10623,16 +10623,16 @@ var DeviceGrayCS = (function deviceGrayCS() {
       return rgbBuf;
     }
   };
-  return constructor;
+  return DeviceGrayCS;
 })();
 
-var DeviceRgbCS = (function deviceRgbCS() {
-  function constructor() {
+var DeviceRgbCS = (function DeviceRgbCSClosure() {
+  function DeviceRgbCS() {
     this.name = 'DeviceRGB';
     this.numComps = 3;
     this.defaultColor = [0, 0, 0];
   }
-  constructor.prototype = {
+  DeviceRgbCS.prototype = {
     getRgb: function rgbcs_getRgb(color) {
       return color;
     },
@@ -10647,16 +10647,16 @@ var DeviceRgbCS = (function deviceRgbCS() {
       return rgbBuf;
     }
   };
-  return constructor;
+  return DeviceRgbCS;
 })();
 
-var DeviceCmykCS = (function deviceCmykCS() {
-  function constructor() {
+var DeviceCmykCS = (function DeviceCmykCSClosure() {
+  function DeviceCmykCS() {
     this.name = 'DeviceCMYK';
     this.numComps = 4;
     this.defaultColor = [0, 0, 0, 1];
   }
-  constructor.prototype = {
+  DeviceCmykCS.prototype = {
     getRgb: function cmykcs_getRgb(color) {
       var c = color[0], m = color[1], y = color[2], k = color[3];
       var c1 = 1 - c, m1 = 1 - m, y1 = 1 - y, k1 = 1 - k;
@@ -10732,7 +10732,7 @@ var DeviceCmykCS = (function deviceCmykCS() {
     }
   };
 
-  return constructor;
+  return DeviceCmykCS;
 })();
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -10740,8 +10740,8 @@ var DeviceCmykCS = (function deviceCmykCS() {
 
 'use strict';
 
-var ARCFourCipher = (function arcFourCipher() {
-  function constructor(key) {
+var ARCFourCipher = (function ARCFourCipherClosure() {
+  function ARCFourCipher(key) {
     this.a = 0;
     this.b = 0;
     var s = new Uint8Array(256);
@@ -10757,7 +10757,7 @@ var ARCFourCipher = (function arcFourCipher() {
     this.s = s;
   }
 
-  constructor.prototype = {
+  ARCFourCipher.prototype = {
     encryptBlock: function arcFourCipherEncryptBlock(data) {
       var i, n = data.length, tmp, tmp2;
       var a = this.a, b = this.b, s = this.s;
@@ -10776,12 +10776,12 @@ var ARCFourCipher = (function arcFourCipher() {
       return output;
     }
   };
-  constructor.prototype.decryptBlock = constructor.prototype.encryptBlock;
+  ARCFourCipher.prototype.decryptBlock = ARCFourCipher.prototype.encryptBlock;
 
-  return constructor;
+  return ARCFourCipher;
 })();
 
-var calculateMD5 = (function calculateMD5() {
+var calculateMD5 = (function calculateMD5Closure() {
   var r = new Uint8Array([
     7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
     5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
@@ -10865,20 +10865,20 @@ var calculateMD5 = (function calculateMD5() {
   return hash;
 })();
 
-var NullCipher = (function nullCipher() {
-  function constructor() {
+var NullCipher = (function NullCipherClosure() {
+  function NullCipher() {
   }
 
-  constructor.prototype = {
+  NullCipher.prototype = {
     decryptBlock: function nullCipherDecryptBlock(data) {
       return data;
     }
   };
 
-  return constructor;
+  return NullCipher;
 })();
 
-var AES128Cipher = (function aes128Cipher() {
+var AES128Cipher = (function AES128CipherClosure() {
   var rcon = new Uint8Array([
     0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36, 0x6c,
     0xd8, 0xab, 0x4d, 0x9a, 0x2f, 0x5e, 0xbc, 0x63, 0xc6, 0x97, 0x35, 0x6a,
@@ -11067,7 +11067,7 @@ var AES128Cipher = (function aes128Cipher() {
     return state;
   }
 
-  function constructor(key) {
+  function AES128Cipher(key) {
     this.key = expandKey128(key);
     this.buffer = new Uint8Array(16);
     this.bufferPosition = 0;
@@ -11107,7 +11107,7 @@ var AES128Cipher = (function aes128Cipher() {
     return output;
   }
 
-  constructor.prototype = {
+  AES128Cipher.prototype = {
     decryptBlock: function aes128CipherDecryptBlock(data) {
       var i, sourceLength = data.length;
       var buffer = this.buffer, bufferLength = this.bufferPosition;
@@ -11128,15 +11128,15 @@ var AES128Cipher = (function aes128Cipher() {
     }
   };
 
-  return constructor;
+  return AES128Cipher;
 })();
 
-var CipherTransform = (function cipherTransform() {
-  function constructor(stringCipherConstructor, streamCipherConstructor) {
+var CipherTransform = (function CipherTransformClosure() {
+  function CipherTransform(stringCipherConstructor, streamCipherConstructor) {
     this.stringCipherConstructor = stringCipherConstructor;
     this.streamCipherConstructor = streamCipherConstructor;
   }
-  constructor.prototype = {
+  CipherTransform.prototype = {
     createStream: function cipherTransformCreateStream(stream) {
       var cipher = new this.streamCipherConstructor();
       return new DecryptStream(stream,
@@ -11152,10 +11152,10 @@ var CipherTransform = (function cipherTransform() {
       return bytesToString(data);
     }
   };
-  return constructor;
+  return CipherTransform;
 })();
 
-var CipherTransformFactory = (function cipherTransformFactory() {
+var CipherTransformFactory = (function CipherTransformFactoryClosure() {
   function prepareKeyData(fileId, password, ownerPassword, userPassword,
                           flags, revision, keyLength, encryptMetadata) {
     var defaultPasswordBytes = new Uint8Array([
@@ -11227,7 +11227,7 @@ var CipherTransformFactory = (function cipherTransformFactory() {
 
   var identityName = new Name('Identity');
 
-  function constructor(dict, fileId, password) {
+  function CipherTransformFactory(dict, fileId, password) {
     var filter = dict.get('Filter');
     if (!isName(filter) || filter.name != 'Standard')
       error('unknown encryption method');
@@ -11310,7 +11310,7 @@ var CipherTransformFactory = (function cipherTransformFactory() {
     return null;
   }
 
-  constructor.prototype = {
+  CipherTransformFactory.prototype = {
     createCipherTransform: function buildCipherCreateCipherTransform(num,
                                                                      gen) {
       if (this.algorithm == 4) {
@@ -11329,7 +11329,7 @@ var CipherTransformFactory = (function cipherTransformFactory() {
     }
   };
 
-  return constructor;
+  return CipherTransformFactory;
 })();
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -11337,8 +11337,8 @@ var CipherTransformFactory = (function cipherTransformFactory() {
 
 'use strict';
 
-var PartialEvaluator = (function partialEvaluator() {
-  function constructor(xref, handler, uniquePrefix) {
+var PartialEvaluator = (function PartialEvaluatorClosure() {
+  function PartialEvaluator(xref, handler, uniquePrefix) {
     this.state = new EvalState();
     this.stateStack = [];
 
@@ -11445,7 +11445,7 @@ var PartialEvaluator = (function partialEvaluator() {
     EX: 'endCompat'
   };
 
-  constructor.prototype = {
+  PartialEvaluator.prototype = {
     getIRQueue: function partialEvaluatorGetIRQueue(stream, resources,
                                     queue, dependency) {
 
@@ -12192,11 +12192,11 @@ var PartialEvaluator = (function partialEvaluator() {
     }
   };
 
-  return constructor;
+  return PartialEvaluator;
 })();
 
-var EvalState = (function evalState() {
-  function constructor() {
+var EvalState = (function EvalStateClosure() {
+  function EvalState() {
     // Are soft masks and alpha values shapes or opacities?
     this.alphaIsShape = false;
     this.fontSize = 0;
@@ -12213,9 +12213,9 @@ var EvalState = (function evalState() {
     this.fillColorSpace = null;
     this.strokeColorSpace = null;
   }
-  constructor.prototype = {
+  EvalState.prototype = {
   };
-  return constructor;
+  return EvalState;
 })();
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -12951,8 +12951,8 @@ function isSpecialUnicode(unicode) {
  *   var type1Font = new Font("MyFontName", binaryFile, propertiesObject);
  *   type1Font.bind();
  */
-var Font = (function Font() {
-  var constructor = function font_constructor(name, file, properties) {
+var Font = (function FontClosure() {
+  function Font(name, file, properties) {
     this.name = name;
     this.coded = properties.coded;
     this.charProcIRQueues = properties.charProcIRQueues;
@@ -13449,7 +13449,7 @@ var Font = (function Font() {
     return nameTable;
   }
 
-  constructor.prototype = {
+  Font.prototype = {
     name: null,
     font: null,
     mimetype: null,
@@ -14438,7 +14438,7 @@ var Font = (function Font() {
     }
   };
 
-  return constructor;
+  return Font;
 })();
 
 /*
@@ -15348,9 +15348,9 @@ CFF.prototype = {
   }
 };
 
-var Type2CFF = (function type2CFF() {
+var Type2CFF = (function Type2CFFClosure() {
   // TODO: replace parsing code with the Type2Parser in font_utils.js
-  function constructor(file, properties) {
+  function Type2CFF(file, properties) {
     var bytes = file.getBytes();
     this.bytes = bytes;
     this.properties = properties;
@@ -15358,7 +15358,7 @@ var Type2CFF = (function type2CFF() {
     this.data = this.parse();
   }
 
-  constructor.prototype = {
+  Type2CFF.prototype = {
     parse: function cff_parse() {
       var header = this.parseHeader();
       var properties = this.properties;
@@ -15902,7 +15902,7 @@ var Type2CFF = (function type2CFF() {
     }
   };
 
-  return constructor;
+  return Type2CFF;
 })();
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -20203,8 +20203,8 @@ var GlyphsUnicode = {
 
 'use strict';
 
-var PDFImage = (function pdfImage() {
-  function constructor(xref, res, image, inline) {
+var PDFImage = (function PDFImageClosure() {
+  function PDFImage(xref, res, image, inline) {
     this.image = image;
     if (image.getParams) {
       // JPX/JPEG2000 streams directly contain bits per component
@@ -20260,7 +20260,7 @@ var PDFImage = (function pdfImage() {
     }
   }
 
-  constructor.prototype = {
+  PDFImage.prototype = {
     getComponents: function getComponents(buffer, decodeMap) {
       var bpc = this.bpc;
       if (bpc == 8)
@@ -20426,7 +20426,7 @@ var PDFImage = (function pdfImage() {
         buffer[i] = comps[i];
     }
   };
-  return constructor;
+  return PDFImage;
 })();
 
 function loadJpegStream(id, imageData, objs) {
@@ -20436,6 +20436,7 @@ function loadJpegStream(id, imageData, objs) {
   });
   img.src = 'data:image/jpeg;base64,' + window.btoa(imageData);
 }
+
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 
@@ -23394,8 +23395,8 @@ function isEOF(v) {
   return v == EOF;
 }
 
-var Parser = (function parserParser() {
-  function constructor(lexer, allowStreams, xref) {
+var Parser = (function ParserClosure() {
+  function Parser(lexer, allowStreams, xref) {
     this.lexer = lexer;
     this.allowStreams = allowStreams;
     this.xref = xref;
@@ -23403,7 +23404,7 @@ var Parser = (function parserParser() {
     this.refill();
   }
 
-  constructor.prototype = {
+  Parser.prototype = {
     refill: function parserRefill() {
       this.buf1 = this.lexer.getObj();
       this.buf2 = this.lexer.getObj();
@@ -23639,15 +23640,15 @@ var Parser = (function parserParser() {
     }
   };
 
-  return constructor;
+  return Parser;
 })();
 
-var Lexer = (function lexer() {
-  function constructor(stream) {
+var Lexer = (function LexerClosure() {
+  function Lexer(stream) {
     this.stream = stream;
   }
 
-  constructor.isSpace = function lexerIsSpace(ch) {
+  Lexer.isSpace = function lexerIsSpace(ch) {
     return ch == ' ' || ch == '\t' || ch == '\x0d' || ch == '\x0a';
   };
 
@@ -23681,7 +23682,7 @@ var Lexer = (function lexer() {
     return -1;
   }
 
-  constructor.prototype = {
+  Lexer.prototype = {
     getNumber: function lexerGetNumber(ch) {
       var floating = false;
       var str = ch;
@@ -23943,11 +23944,11 @@ var Lexer = (function lexer() {
     }
   };
 
-  return constructor;
+  return Lexer;
 })();
 
-var Linearization = (function linearizationLinearization() {
-  function constructor(stream) {
+var Linearization = (function LinearizationClosure() {
+  function Linearization(stream) {
     this.parser = new Parser(new Lexer(stream), false);
     var obj1 = this.parser.getObj();
     var obj2 = this.parser.getObj();
@@ -23961,7 +23962,7 @@ var Linearization = (function linearizationLinearization() {
     }
   }
 
-  constructor.prototype = {
+  Linearization.prototype = {
     getInt: function linearizationGetInt(name) {
       var linDict = this.linDict;
       var obj;
@@ -24020,7 +24021,7 @@ var Linearization = (function linearizationLinearization() {
     }
   };
 
-  return constructor;
+  return Linearization;
 })();
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -24033,13 +24034,13 @@ var PatternType = {
   RADIAL: 3
 };
 
-var Pattern = (function patternPattern() {
+var Pattern = (function PatternClosure() {
   // Constructor should define this.getPattern
-  function constructor() {
+  function Pattern() {
     error('should not call Pattern constructor');
   }
 
-  constructor.prototype = {
+  Pattern.prototype = {
     // Input: current Canvas context
     // Output: the appropriate fillStyle or strokeStyle
     getPattern: function pattern_getStyle(ctx) {
@@ -24047,11 +24048,11 @@ var Pattern = (function patternPattern() {
     }
   };
 
-  constructor.shadingFromIR = function pattern_shadingFromIR(ctx, raw) {
+  Pattern.shadingFromIR = function pattern_shadingFromIR(ctx, raw) {
     return Shadings[raw[0]].fromIR(ctx, raw);
   };
 
-  constructor.parseShading = function pattern_shading(shading, matrix, xref,
+  Pattern.parseShading = function pattern_shading(shading, matrix, xref,
                                                       res, ctx) {
 
     var dict = isStream(shading) ? shading.dict : shading;
@@ -24066,15 +24067,15 @@ var Pattern = (function patternPattern() {
         return new Shadings.Dummy();
     }
   };
-  return constructor;
+  return Pattern;
 })();
 
 var Shadings = {};
 
 // Radial and axial shading have very similar implementations
 // If needed, the implementations can be broken into two classes
-Shadings.RadialAxial = (function radialAxialShading() {
-  function constructor(dict, matrix, xref, res, ctx) {
+Shadings.RadialAxial = (function RadialAxialClosure() {
+  function RadialAxial(dict, matrix, xref, res, ctx) {
     this.matrix = matrix;
     this.coordsArr = dict.get('Coords');
     this.shadingType = dict.get('ShadingType');
@@ -24127,7 +24128,7 @@ Shadings.RadialAxial = (function radialAxialShading() {
     this.colorStops = colorStops;
   }
 
-  constructor.fromIR = function radialAxialShadingGetIR(ctx, raw) {
+  RadialAxial.fromIR = function radialAxialShadingGetIR(ctx, raw) {
     var type = raw[1];
     var colorStops = raw[2];
     var p0 = raw[3];
@@ -24159,7 +24160,7 @@ Shadings.RadialAxial = (function radialAxialShading() {
     return grad;
   };
 
-  constructor.prototype = {
+  RadialAxial.prototype = {
     getIR: function radialAxialShadingGetIR() {
       var coordsArr = this.coordsArr;
       var type = this.shadingType;
@@ -24187,27 +24188,27 @@ Shadings.RadialAxial = (function radialAxialShading() {
     }
   };
 
-  return constructor;
+  return RadialAxial;
 })();
 
-Shadings.Dummy = (function dummyShading() {
-  function constructor() {
+Shadings.Dummy = (function DummyClosure() {
+  function Dummy() {
     this.type = 'Pattern';
   }
 
-  constructor.fromIR = function dummyShadingFromIR() {
+  Dummy.fromIR = function dummyShadingFromIR() {
     return 'hotpink';
   };
 
-  constructor.prototype = {
+  Dummy.prototype = {
     getIR: function dummyShadingGetIR() {
       return ['Dummy'];
     }
   };
-  return constructor;
+  return Dummy;
 })();
 
-var TilingPattern = (function tilingPattern() {
+var TilingPattern = (function TilingPatternClosure() {
   var PaintType = {
     COLORED: 1,
     UNCOLORED: 2
@@ -24328,8 +24329,8 @@ var TilingPattern = (function tilingPattern() {
 
 'use strict';
 
-var Stream = (function streamStream() {
-  function constructor(arrayBuffer, start, length, dict) {
+var Stream = (function StreamClosure() {
+  function Stream(arrayBuffer, start, length, dict) {
     this.bytes = new Uint8Array(arrayBuffer);
     this.start = start || 0;
     this.pos = this.start;
@@ -24339,7 +24340,7 @@ var Stream = (function streamStream() {
 
   // required methods for a stream. if a particular stream does not
   // implement these, an error should be thrown
-  constructor.prototype = {
+  Stream.prototype = {
     get length() {
       return this.end - this.start;
     },
@@ -24392,11 +24393,11 @@ var Stream = (function streamStream() {
     isStream: true
   };
 
-  return constructor;
+  return Stream;
 })();
 
-var StringStream = (function stringStream() {
-  function constructor(str) {
+var StringStream = (function StringStreamClosure() {
+  function StringStream(str) {
     var length = str.length;
     var bytes = new Uint8Array(length);
     for (var n = 0; n < length; ++n)
@@ -24404,21 +24405,21 @@ var StringStream = (function stringStream() {
     Stream.call(this, bytes);
   }
 
-  constructor.prototype = Stream.prototype;
+  StringStream.prototype = Stream.prototype;
 
-  return constructor;
+  return StringStream;
 })();
 
 // super class for the decoding streams
-var DecodeStream = (function decodeStream() {
-  function constructor() {
+var DecodeStream = (function DecodeStreamClosure() {
+  function DecodeStream() {
     this.pos = 0;
     this.bufferLength = 0;
     this.eof = false;
     this.buffer = null;
   }
 
-  constructor.prototype = {
+  DecodeStream.prototype = {
     ensureBuffer: function decodestream_ensureBuffer(requested) {
       var buffer = this.buffer;
       var current = buffer ? buffer.byteLength : 0;
@@ -24503,24 +24504,24 @@ var DecodeStream = (function decodeStream() {
     }
   };
 
-  return constructor;
+  return DecodeStream;
 })();
 
-var FakeStream = (function fakeStream() {
-  function constructor(stream) {
+var FakeStream = (function FakeStreamClosure() {
+  function FakeStream(stream) {
     this.dict = stream.dict;
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
-  constructor.prototype.readBlock = function fakeStreamReadBlock() {
+  FakeStream.prototype = Object.create(DecodeStream.prototype);
+  FakeStream.prototype.readBlock = function fakeStreamReadBlock() {
     var bufferLength = this.bufferLength;
     bufferLength += 1024;
     var buffer = this.ensureBuffer(bufferLength);
     this.bufferLength = bufferLength;
   };
 
-  constructor.prototype.getBytes = function fakeStreamGetBytes(length) {
+  FakeStream.prototype.getBytes = function fakeStreamGetBytes(length) {
     var end, pos = this.pos;
 
     if (length) {
@@ -24542,18 +24543,20 @@ var FakeStream = (function fakeStream() {
     return this.buffer.subarray(pos, end);
   };
 
-  return constructor;
+  return FakeStream;
 })();
 
-var StreamsSequenceStream = (function streamSequenceStream() {
-  function constructor(streams) {
+var StreamsSequenceStream = (function StreamsSequenceStreamClosure() {
+  function StreamsSequenceStream(streams) {
     this.streams = streams;
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  StreamsSequenceStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBlock = function streamSequenceStreamReadBlock() {
+  StreamsSequenceStream.prototype.readBlock =
+    function streamSequenceStreamReadBlock() {
+
     var streams = this.streams;
     if (streams.length == 0) {
       this.eof = true;
@@ -24568,10 +24571,10 @@ var StreamsSequenceStream = (function streamSequenceStream() {
     this.bufferLength = newLength;
   };
 
-  return constructor;
+  return StreamsSequenceStream;
 })();
 
-var FlateStream = (function flateStream() {
+var FlateStream = (function FlateStreamClosure() {
   var codeLenCodeMap = new Uint32Array([
     16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
   ]);
@@ -24664,7 +24667,7 @@ var FlateStream = (function flateStream() {
     0x50003, 0x50013, 0x5000b, 0x5001b, 0x50007, 0x50017, 0x5000f, 0x00000
   ]), 5];
 
-  function constructor(stream) {
+  function FlateStream(stream) {
     var bytes = stream.getBytes();
     var bytesPos = 0;
 
@@ -24689,9 +24692,9 @@ var FlateStream = (function flateStream() {
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  FlateStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.getBits = function flateStreamGetBits(bits) {
+  FlateStream.prototype.getBits = function flateStreamGetBits(bits) {
     var codeSize = this.codeSize;
     var codeBuf = this.codeBuf;
     var bytes = this.bytes;
@@ -24711,7 +24714,7 @@ var FlateStream = (function flateStream() {
     return b;
   };
 
-  constructor.prototype.getCode = function flateStreamGetCode(table) {
+  FlateStream.prototype.getCode = function flateStreamGetCode(table) {
     var codes = table[0];
     var maxLen = table[1];
     var codeSize = this.codeSize;
@@ -24737,7 +24740,7 @@ var FlateStream = (function flateStream() {
     return codeVal;
   };
 
-  constructor.prototype.generateHuffmanTable =
+  FlateStream.prototype.generateHuffmanTable =
     function flateStreamGenerateHuffmanTable(lengths) {
     var n = lengths.length;
 
@@ -24776,7 +24779,7 @@ var FlateStream = (function flateStream() {
     return [codes, maxLen];
   };
 
-  constructor.prototype.readBlock = function flateStreamReadBlock() {
+  FlateStream.prototype.readBlock = function flateStreamReadBlock() {
     // read block header
     var hdr = this.getBits(3);
     if (hdr & 1)
@@ -24907,11 +24910,11 @@ var FlateStream = (function flateStream() {
     }
   };
 
-  return constructor;
+  return FlateStream;
 })();
 
-var PredictorStream = (function predictorStream() {
-  function constructor(stream, params) {
+var PredictorStream = (function PredictorStreamClosure() {
+  function PredictorStream(stream, params) {
     var predictor = this.predictor = params.get('Predictor') || 1;
 
     if (predictor <= 1)
@@ -24938,9 +24941,9 @@ var PredictorStream = (function predictorStream() {
     return this;
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  PredictorStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBlockTiff =
+  PredictorStream.prototype.readBlockTiff =
     function predictorStreamReadBlockTiff() {
     var rowBytes = this.rowBytes;
 
@@ -25001,7 +25004,9 @@ var PredictorStream = (function predictorStream() {
     this.bufferLength += rowBytes;
   };
 
-  constructor.prototype.readBlockPng = function predictorStreamReadBlockPng() {
+  PredictorStream.prototype.readBlockPng =
+    function predictorStreamReadBlockPng() {
+
     var rowBytes = this.rowBytes;
     var pixBytes = this.pixBytes;
 
@@ -25078,7 +25083,7 @@ var PredictorStream = (function predictorStream() {
     this.bufferLength += rowBytes;
   };
 
-  return constructor;
+  return PredictorStream;
 })();
 
 /**
@@ -25088,7 +25093,7 @@ var PredictorStream = (function predictorStream() {
  * a library to decode these images and the stream behaves like all the other
  * DecodeStreams.
  */
-var JpegStream = (function jpegStream() {
+var JpegStream = (function JpegStreamClosure() {
   function isAdobeImage(bytes) {
     var maxBytesScanned = Math.max(bytes.length - 16, 1024);
     // Looking for APP14, 'Adobe'
@@ -25119,7 +25124,7 @@ var JpegStream = (function jpegStream() {
     return newBytes;
   }
 
-  function constructor(bytes, dict, xref) {
+  function JpegStream(bytes, dict, xref) {
     // TODO: per poppler, some images may have 'junk' before that
     // need to be removed
     this.dict = dict;
@@ -25150,9 +25155,9 @@ var JpegStream = (function jpegStream() {
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  JpegStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.ensureBuffer = function jpegStreamEnsureBuffer(req) {
+  JpegStream.prototype.ensureBuffer = function jpegStreamEnsureBuffer(req) {
     if (this.bufferLength)
       return;
     var jpegImage = new JpegImage();
@@ -25164,18 +25169,18 @@ var JpegStream = (function jpegStream() {
     this.buffer = data;
     this.bufferLength = data.length;
   };
-  constructor.prototype.getIR = function jpegStreamGetIR() {
+  JpegStream.prototype.getIR = function jpegStreamGetIR() {
     return this.src;
   };
-  constructor.prototype.getChar = function jpegStreamGetChar() {
+  JpegStream.prototype.getChar = function jpegStreamGetChar() {
       error('internal error: getChar is not valid on JpegStream');
   };
 
-  return constructor;
+  return JpegStream;
 })();
 
-var DecryptStream = (function decryptStream() {
-  function constructor(str, decrypt) {
+var DecryptStream = (function DecryptStreamClosure() {
+  function DecryptStream(str, decrypt) {
     this.str = str;
     this.dict = str.dict;
     this.decrypt = decrypt;
@@ -25185,9 +25190,9 @@ var DecryptStream = (function decryptStream() {
 
   var chunkSize = 512;
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  DecryptStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBlock = function decryptStreamReadBlock() {
+  DecryptStream.prototype.readBlock = function decryptStreamReadBlock() {
     var chunk = this.str.getBytes(chunkSize);
     if (!chunk || chunk.length == 0) {
       this.eof = true;
@@ -25204,11 +25209,11 @@ var DecryptStream = (function decryptStream() {
     this.bufferLength = bufferLength;
   };
 
-  return constructor;
+  return DecryptStream;
 })();
 
-var Ascii85Stream = (function ascii85Stream() {
-  function constructor(str) {
+var Ascii85Stream = (function Ascii85StreamClosure() {
+  function Ascii85Stream(str) {
     this.str = str;
     this.dict = str.dict;
     this.input = new Uint8Array(5);
@@ -25216,9 +25221,9 @@ var Ascii85Stream = (function ascii85Stream() {
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  Ascii85Stream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBlock = function ascii85StreamReadBlock() {
+  Ascii85Stream.prototype.readBlock = function ascii85StreamReadBlock() {
     var tildaCode = '~'.charCodeAt(0);
     var zCode = 'z'.charCodeAt(0);
     var str = this.str;
@@ -25273,11 +25278,11 @@ var Ascii85Stream = (function ascii85Stream() {
     }
   };
 
-  return constructor;
+  return Ascii85Stream;
 })();
 
-var AsciiHexStream = (function asciiHexStream() {
-  function constructor(str) {
+var AsciiHexStream = (function AsciiHexStreamClosure() {
+  function AsciiHexStream(str) {
     this.str = str;
     this.dict = str.dict;
 
@@ -25311,9 +25316,9 @@ var AsciiHexStream = (function asciiHexStream() {
       102: 15
   };
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  AsciiHexStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBlock = function asciiHexStreamReadBlock() {
+  AsciiHexStream.prototype.readBlock = function asciiHexStreamReadBlock() {
     var gtCode = '>'.charCodeAt(0), bytes = this.str.getBytes(), c, n,
         decodeLength, buffer, bufferLength, i, length;
 
@@ -25343,10 +25348,10 @@ var AsciiHexStream = (function asciiHexStream() {
     this.eof = true;
   };
 
-  return constructor;
+  return AsciiHexStream;
 })();
 
-var CCITTFaxStream = (function ccittFaxStream() {
+var CCITTFaxStream = (function CCITTFaxStreamClosure() {
 
   var ccittEOL = -2;
   var twoDimPass = 0;
@@ -25774,7 +25779,7 @@ var CCITTFaxStream = (function ccittFaxStream() {
     [2, 2], [2, 2], [2, 2], [2, 2]
   ];
 
-  function constructor(str, params) {
+  function CCITTFaxStream(str, params) {
     this.str = str;
     this.dict = str.dict;
 
@@ -25819,9 +25824,9 @@ var CCITTFaxStream = (function ccittFaxStream() {
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  CCITTFaxStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBlock = function ccittFaxStreamReadBlock() {
+  CCITTFaxStream.prototype.readBlock = function ccittFaxStreamReadBlock() {
     while (!this.eof) {
       var c = this.lookChar();
       this.buf = EOF;
@@ -25830,7 +25835,7 @@ var CCITTFaxStream = (function ccittFaxStream() {
     }
   };
 
-  constructor.prototype.addPixels =
+  CCITTFaxStream.prototype.addPixels =
     function ccittFaxStreamAddPixels(a1, blackPixels) {
     var codingLine = this.codingLine;
     var codingPos = this.codingPos;
@@ -25850,7 +25855,7 @@ var CCITTFaxStream = (function ccittFaxStream() {
     this.codingPos = codingPos;
   };
 
-  constructor.prototype.addPixelsNeg =
+  CCITTFaxStream.prototype.addPixelsNeg =
     function ccittFaxStreamAddPixelsNeg(a1, blackPixels) {
     var codingLine = this.codingLine;
     var codingPos = this.codingPos;
@@ -25879,7 +25884,7 @@ var CCITTFaxStream = (function ccittFaxStream() {
     this.codingPos = codingPos;
   };
 
-  constructor.prototype.lookChar = function ccittFaxStreamLookChar() {
+  CCITTFaxStream.prototype.lookChar = function ccittFaxStreamLookChar() {
     if (this.buf != EOF)
       return this.buf;
 
@@ -26198,7 +26203,9 @@ var CCITTFaxStream = (function ccittFaxStream() {
     return [false, 0, false];
   };
 
-  constructor.prototype.getTwoDimCode = function ccittFaxStreamGetTwoDimCode() {
+  CCITTFaxStream.prototype.getTwoDimCode =
+    function ccittFaxStreamGetTwoDimCode() {
+
     var code = 0;
     var p;
     if (this.eoblock) {
@@ -26217,7 +26224,9 @@ var CCITTFaxStream = (function ccittFaxStream() {
     return EOF;
   };
 
-  constructor.prototype.getWhiteCode = function ccittFaxStreamGetWhiteCode() {
+  CCITTFaxStream.prototype.getWhiteCode =
+    function ccittFaxStreamGetWhiteCode() {
+
     var code = 0;
     var p;
     var n;
@@ -26249,7 +26258,9 @@ var CCITTFaxStream = (function ccittFaxStream() {
     return 1;
   };
 
-  constructor.prototype.getBlackCode = function ccittFaxStreamGetBlackCode() {
+  CCITTFaxStream.prototype.getBlackCode =
+    function ccittFaxStreamGetBlackCode() {
+
     var code, p;
     if (this.eoblock) {
       code = this.lookBits(13);
@@ -26284,7 +26295,7 @@ var CCITTFaxStream = (function ccittFaxStream() {
     return 1;
   };
 
-  constructor.prototype.lookBits = function ccittFaxStreamLookBits(n) {
+  CCITTFaxStream.prototype.lookBits = function ccittFaxStreamLookBits(n) {
     var c;
     while (this.inputBits < n) {
       if ((c = this.str.getByte()) == null) {
@@ -26299,16 +26310,16 @@ var CCITTFaxStream = (function ccittFaxStream() {
     return (this.inputBuf >> (this.inputBits - n)) & (0xFFFF >> (16 - n));
   };
 
-  constructor.prototype.eatBits = function ccittFaxStreamEatBits(n) {
+  CCITTFaxStream.prototype.eatBits = function ccittFaxStreamEatBits(n) {
     if ((this.inputBits -= n) < 0)
       this.inputBits = 0;
   };
 
-  return constructor;
+  return CCITTFaxStream;
 })();
 
-var LZWStream = (function lzwStream() {
-  function constructor(str, earlyChange) {
+var LZWStream = (function LZWStreamClosure() {
+  function LZWStream(str, earlyChange) {
     this.str = str;
     this.dict = str.dict;
     this.cachedData = 0;
@@ -26334,9 +26345,9 @@ var LZWStream = (function lzwStream() {
     DecodeStream.call(this);
   }
 
-  constructor.prototype = Object.create(DecodeStream.prototype);
+  LZWStream.prototype = Object.create(DecodeStream.prototype);
 
-  constructor.prototype.readBits = function lzwStreamReadBits(n) {
+  LZWStream.prototype.readBits = function lzwStreamReadBits(n) {
     var bitsCached = this.bitsCached;
     var cachedData = this.cachedData;
     while (bitsCached < n) {
@@ -26354,7 +26365,7 @@ var LZWStream = (function lzwStream() {
     return (cachedData >>> bitsCached) & ((1 << n) - 1);
   };
 
-  constructor.prototype.readBlock = function lzwStreamReadBlock() {
+  LZWStream.prototype.readBlock = function lzwStreamReadBlock() {
     var blockSize = 512;
     var estimatedDecodedSize = blockSize * 2, decodedSizeDelta = blockSize;
     var i, j, q;
@@ -26433,7 +26444,7 @@ var LZWStream = (function lzwStream() {
     this.bufferLength = currentBufferLength;
   };
 
-  return constructor;
+  return LZWStream;
 })();
 
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
