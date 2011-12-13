@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '9c45185';
+  PDFJS.build = '868d07e';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -23652,7 +23652,7 @@ var Parser = (function ParserClosure() {
       if (name == 'CCITTFaxDecode' || name == 'CCF') {
         return new CCITTFaxStream(stream, params);
       }
-      TODO('filter "' + name + '" not supported yet');
+      warn('filter "' + name + '" not supported yet');
       return stream;
     }
   };
