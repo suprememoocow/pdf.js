@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '853f160';
+  PDFJS.build = '9c45185';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -14011,6 +14011,10 @@ var Font = (function FontClosure() {
               var i = unassignedUnicodeItems[j];
               while (unusedUnicode in usedUnicodes)
                 unusedUnicode++;
+              var cid = i + 1;
+              // override only if unicode mapping is not specified
+              if (!(cid in toUnicode))
+                toUnicode[cid] = unusedUnicode;
               glyphs[i].unicode = unusedUnicode++;
             }
             this.useToUnicode = true;
