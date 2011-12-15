@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '27f0252';
+  PDFJS.build = 'f8a38de';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -583,6 +583,10 @@ var PDFDoc = (function PDFDocClosure() {
             var imageData = data[2];
             loadJpegStream(id, imageData, this.objs);
             break;
+          case 'Image':
+            var imageData = data[2];
+            this.objs.resolve(id, imageData);
+            break;
           case 'Font':
             var name = data[2];
             var file = data[3];
@@ -626,6 +630,41 @@ var PDFDoc = (function PDFDocClosure() {
         else
           throw data.error;
       }, this);
+
+      messageHandler.on('jpeg_decode', function(data, promise) {
+        var imageData = data[0];
+        var components = data[1];
+        if (components != 3 && components != 1)
+          error('Only 3 component or 1 component can be returned');
+
+        var img = new Image();
+        img.onload = (function jpegImageLoaderOnload() {
+          var width = img.width;
+          var height = img.height;
+          var size = width * height;
+          var rgbaLength = size * 4;
+          var buf = new Uint8Array(size * components);
+          var tmpCanvas = new ScratchCanvas(width, height);
+          var tmpCtx = tmpCanvas.getContext('2d');
+          tmpCtx.drawImage(img, 0, 0);
+          var data = tmpCtx.getImageData(0, 0, width, height).data;
+
+          if (components == 3) {
+            for (var i = 0, j = 0; i < rgbaLength; i += 4, j += 3) {
+              buf[j] = data[i];
+              buf[j + 1] = data[i + 1];
+              buf[j + 2] = data[i + 2];
+            }
+          } else if (components == 1) {
+            for (var i = 0, j = 0; i < rgbaLength; i += 4, j++) {
+              buf[j] = data[i];
+            }
+          }
+          promise.resolve({ data: buf, width: width, height: height});
+        }).bind(this);
+        var src = 'data:image/jpeg;base64,' + window.btoa(imageData);
+        img.src = src;
+      });
 
       setTimeout(function pdfDocFontReadySetTimeout() {
         messageHandler.send('doc', this.data);
@@ -897,7 +936,33 @@ var Promise = (function PromiseClosure() {
     }
     this.callbacks = [];
   };
-
+  /**
+   * Builds a promise that is resolved when all the passed in promises are
+   * resolved.
+   * @param {Promise[]} promises Array of promises to wait for.
+   * @return {Promise} New dependant promise.
+   */
+  Promise.all = function(promises) {
+    var deferred = new Promise();
+    var unresolved = promises.length;
+    var results = [];
+    if (unresolved === 0) {
+      deferred.resolve(results);
+      return deferred;
+    }
+    for (var i = 0; i < unresolved; ++i) {
+      var promise = promises[i];
+      promise.then((function(i) {
+        return function(value) {
+          results[i] = value;
+          unresolved--;
+          if (unresolved === 0)
+            deferred.resolve(results);
+        };
+      })(i));
+    }
+    return deferred;
+  };
   Promise.prototype = {
     hasData: false,
 
@@ -2070,7 +2135,11 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.restore();
     },
 
-    paintImageXObject: function canvasGraphicsPaintImageXObject(imgData) {
+    paintImageXObject: function canvasGraphicsPaintImageXObject(objId) {
+      var imgData = this.objs.get(objId);
+      if (!imgData) {
+        error('Dependent image isn\'t ready yet');
+      }
       this.save();
       var ctx = this.ctx;
       var w = imgData.width;
@@ -11519,62 +11588,52 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         var w = dict.get('Width', 'W');
         var h = dict.get('Height', 'H');
 
-        if (image instanceof JpegStream && image.isNative) {
-          var objId = 'img_' + uniquePrefix + (++self.objIdCounter);
-          handler.send('obj', [objId, 'JpegStream', image.getIR()]);
+        var imageMask = dict.get('ImageMask', 'IM') || false;
+        if (imageMask) {
+          // This depends on a tmpCanvas beeing filled with the
+          // current fillStyle, such that processing the pixel
+          // data can't be done here. Instead of creating a
+          // complete PDFImage, only read the information needed
+          // for later.
 
-          // Add the dependency on the image object.
-          insertDependency([objId]);
+          var width = dict.get('Width', 'W');
+          var height = dict.get('Height', 'H');
+          var bitStrideLength = (width + 7) >> 3;
+          var imgArray = image.getBytes(bitStrideLength * height);
+          var decode = dict.get('Decode', 'D');
+          var inverseDecode = !!decode && decode[0] > 0;
 
-          // The normal fn.
-          fn = 'paintJpegXObject';
-          args = [objId, w, h];
-
+          fn = 'paintImageMaskXObject';
+          args = [imgArray, inverseDecode, width, height];
           return;
         }
-
-        // Needs to be rendered ourself.
-
-        // Figure out if the image has an imageMask.
-        var imageMask = dict.get('ImageMask', 'IM') || false;
 
         // If there is no imageMask, create the PDFImage and a lot
         // of image processing can be done here.
-        if (!imageMask) {
-          var imageObj = new PDFImage(xref, resources, image, inline);
+        var objId = 'img_' + uniquePrefix + (++self.objIdCounter);
+        insertDependency([objId]);
+        args = [objId, w, h];
 
-          if (imageObj.imageMask) {
-            throw 'Can\'t handle this in the web worker :/';
-          }
-
-          var imgData = {
-            width: w,
-            height: h,
-            data: new Uint8Array(w * h * 4)
-          };
-          var pixels = imgData.data;
-          imageObj.fillRgbaBuffer(pixels, imageObj.decode);
-
-          fn = 'paintImageXObject';
-          args = [imgData];
+        var softMask = dict.get('SMask', 'IM') || false;
+        if (!softMask && image instanceof JpegStream && image.isNative) {
+          // These JPEGs don't need any more processing so we can just send it.
+          fn = 'paintJpegXObject';
+          handler.send('obj', [objId, 'JpegStream', image.getIR()]);
           return;
         }
 
-        // This depends on a tmpCanvas beeing filled with the
-        // current fillStyle, such that processing the pixel
-        // data can't be done here. Instead of creating a
-        // complete PDFImage, only read the information needed
-        // for later.
-        fn = 'paintImageMaskXObject';
+        fn = 'paintImageXObject';
 
-        var width = dict.get('Width', 'W');
-        var height = dict.get('Height', 'H');
-        var bitStrideLength = (width + 7) >> 3;
-        var imgArray = image.getBytes(bitStrideLength * height);
-        var decode = dict.get('Decode', 'D');
-        var inverseDecode = !!decode && decode[0] > 0;
-
-        args = [imgArray, inverseDecode, width, height];
+        PDFImage.buildImage(function(imageObj) {
+            var imgData = {
+              width: w,
+              height: h,
+              data: new Uint8Array(w * h * 4)
+            };
+            var pixels = imgData.data;
+            imageObj.fillRgbaBuffer(pixels, imageObj.decode);
+            handler.send('obj', [objId, 'Image', imgData]);
+          }, handler, xref, resources, image, inline);
       }
 
       uniquePrefix = uniquePrefix || '';
@@ -20253,7 +20312,27 @@ var GlyphsUnicode = {
 'use strict';
 
 var PDFImage = (function PDFImageClosure() {
-  function PDFImage(xref, res, image, inline) {
+  /**
+   * Decode the image in the main thread if it supported. Resovles the promise
+   * when the image data is ready.
+   */
+  function handleImageData(handler, xref, res, image, promise) {
+    if (image instanceof JpegStream && image.isNative) {
+      // For natively supported jpegs send them to the main thread for decoding.
+      var dict = image.dict;
+      var colorSpace = dict.get('ColorSpace', 'CS');
+      colorSpace = ColorSpace.parse(colorSpace, xref, res);
+      var numComps = colorSpace.numComps;
+      handler.send('jpeg_decode', [image.getIR(), numComps], function(message) {
+        var data = message.data;
+        var stream = new Stream(data, 0, data.length, image.dict);
+        promise.resolve(stream);
+      });
+    } else {
+      promise.resolve(image);
+    }
+  }
+  function PDFImage(xref, res, image, inline, smask) {
     this.image = image;
     if (image.getParams) {
       // JPX/JPEG2000 streams directly contain bits per component
@@ -20300,14 +20379,37 @@ var PDFImage = (function PDFImageClosure() {
     this.decode = dict.get('Decode', 'D');
 
     var mask = xref.fetchIfRef(dict.get('Mask'));
-    var smask = xref.fetchIfRef(dict.get('SMask'));
 
     if (mask) {
       TODO('masked images');
     } else if (smask) {
-      this.smask = new PDFImage(xref, res, smask);
+      this.smask = new PDFImage(xref, res, smask, false);
     }
   }
+  /**
+   * Handles processing of image data and calls the callback with an argument
+   * of a PDFImage when the image is ready to be used.
+   */
+  PDFImage.buildImage = function buildImage(callback, handler, xref, res,
+                                               image, inline) {
+    var imageDataPromise = new Promise();
+    var smaskPromise = new Promise();
+    // The image data and smask data may not be ready yet, wait till both are
+    // resolved.
+    Promise.all([imageDataPromise, smaskPromise]).then(function(results) {
+      var imageData = results[0], smaskData = results[1];
+      var image = new PDFImage(xref, res, imageData, inline, smaskData);
+      callback(image);
+    });
+
+    handleImageData(handler, xref, res, image, imageDataPromise);
+
+    var smask = xref.fetchIfRef(image.dict.get('SMask'));
+    if (smask)
+      handleImageData(handler, xref, res, smask, smaskPromise);
+    else
+      smaskPromise.resolve(null);
+  };
 
   PDFImage.prototype = {
     getComponents: function getComponents(buffer, decodeMap) {
@@ -20379,18 +20481,6 @@ var PDFImage = (function PDFImageClosure() {
       var buf = new Uint8Array(width * height);
 
       if (smask) {
-        if (smask.image.src) {
-          // smask is a DOM image
-          var tempCanvas = new ScratchCanvas(width, height);
-          var tempCtx = tempCanvas.getContext('2d');
-          var domImage = smask.image;
-          tempCtx.drawImage(domImage, 0, 0, domImage.width, domImage.height,
-            0, 0, width, height);
-          var data = tempCtx.getImageData(0, 0, width, height).data;
-          for (var i = 0, j = 0, ii = width * height; i < ii; ++i, j += 4)
-            buf[i] = data[j]; // getting first component value
-          return buf;
-        }
         var sw = smask.width;
         var sh = smask.height;
         if (sw != this.width || sh != this.height)
@@ -20408,8 +20498,7 @@ var PDFImage = (function PDFImageClosure() {
     applyStencilMask: function applyStencilMask(buffer, inverseDecode) {
       var width = this.width, height = this.height;
       var bitStrideLength = (width + 7) >> 3;
-      this.image.reset();
-      var imgArray = this.image.getBytes(bitStrideLength * height);
+      var imgArray = this.getImageBytes(bitStrideLength * height);
       var imgArrayPos = 0;
       var i, j, mask, buf;
       // removing making non-masked pixels transparent
@@ -20437,8 +20526,7 @@ var PDFImage = (function PDFImageClosure() {
 
       // rows start at byte boundary;
       var rowBytes = (width * numComps * bpc + 7) >> 3;
-      this.image.reset();
-      var imgArray = this.image.getBytes(height * rowBytes);
+      var imgArray = this.getImageBytes(height * rowBytes);
 
       var comps = this.colorSpace.getRgbBuffer(
         this.getComponents(imgArray, decodeMap), bpc);
@@ -20465,14 +20553,17 @@ var PDFImage = (function PDFImageClosure() {
 
       // rows start at byte boundary;
       var rowBytes = (width * numComps * bpc + 7) >> 3;
-      this.image.reset();
-      var imgArray = this.image.getBytes(height * rowBytes);
+      var imgArray = this.getImageBytes(height * rowBytes);
 
       var comps = this.getComponents(imgArray);
       var length = width * height;
 
       for (var i = 0; i < length; ++i)
         buffer[i] = comps[i];
+    },
+    getImageBytes: function getImageBytes(length) {
+      this.image.reset();
+      return this.image.getBytes(length);
     }
   };
   return PDFImage;
@@ -26504,6 +26595,8 @@ var LZWStream = (function LZWStreamClosure() {
 function MessageHandler(name, comObj) {
   this.name = name;
   this.comObj = comObj;
+  this.callbackIndex = 1;
+  var callbacks = this.callbacks = {};
   var ah = this.actionHandler = {};
 
   ah['console_log'] = [function ahConsoleLog(data) {
@@ -26512,11 +26605,33 @@ function MessageHandler(name, comObj) {
   ah['console_error'] = [function ahConsoleError(data) {
       console.error.apply(console, data);
   }];
+
   comObj.onmessage = function messageHandlerComObjOnMessage(event) {
     var data = event.data;
-    if (data.action in ah) {
+    if (data.isReply) {
+      var callbackId = data.callbackId;
+      if (data.callbackId in callbacks) {
+        var callback = callbacks[callbackId];
+        delete callbacks[callbackId];
+        callback(data.data);
+      } else {
+        throw 'Cannot resolve callback ' + callbackId;
+      }
+    } else if (data.action in ah) {
       var action = ah[data.action];
-      action[0].call(action[1], data.data);
+      if (data.callbackId) {
+        var promise = new Promise();
+        promise.then(function(resolvedData) {
+          comObj.postMessage({
+            isReply: true,
+            callbackId: data.callbackId,
+            data: resolvedData
+          });
+        });
+        action[0].call(action[1], data.data, promise);
+      } else {
+        action[0].call(action[1], data.data);
+      }
     } else {
       throw 'Unkown action from worker: ' + data.action;
     }
@@ -26531,12 +26646,23 @@ MessageHandler.prototype = {
     }
     ah[actionName] = [handler, scope];
   },
-
-  send: function messageHandlerSend(actionName, data) {
-    this.comObj.postMessage({
+  /**
+   * Sends a message to the comObj to invoke the action with the supplied data.
+   * @param {String} actionName Action to call.
+   * @param {JSON} data JSON data to send.
+   * @param {function} [callback] Optional callback that will handle a reply.
+   */
+  send: function messageHandlerSend(actionName, data, callback) {
+    var message = {
       action: actionName,
       data: data
-    });
+    };
+    if (callback) {
+      var callbackId = this.callbackIndex++;
+      this.callbacks[callbackId] = callback;
+      message.callbackId = callbackId;
+    }
+    this.comObj.postMessage(message);
   }
 };
 
