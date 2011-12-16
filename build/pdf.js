@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f8a38de';
+  PDFJS.build = 'cd4745a';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -2137,9 +2137,9 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
 
     paintImageXObject: function canvasGraphicsPaintImageXObject(objId) {
       var imgData = this.objs.get(objId);
-      if (!imgData) {
+      if (!imgData)
         error('Dependent image isn\'t ready yet');
-      }
+
       this.save();
       var ctx = this.ctx;
       var w = imgData.width;
@@ -10550,6 +10550,29 @@ var ColorSpace = (function ColorSpaceClosure() {
     }
     return null;
   };
+  /**
+   * Checks if a decode map matches the default decode map for a color space.
+   * This handles the general decode maps where there are two values per
+   * component. e.g. [0, 1, 0, 1, 0, 1] for a RGB color.
+   * This does not handle Lab, Indexed, or Pattern decode maps since they are
+   * slightly different.
+   * @param {Array} decode Decode map (usually from an image).
+   * @param {Number} n Number of components the color space has.
+   */
+  ColorSpace.isDefaultDecode = function colorSpaceIsDefaultDecode(decode, n) {
+    if (!decode)
+      return true;
+
+    if (n * 2 !== decode.length) {
+      warning('The decode map is not the correct length');
+      return true;
+    }
+    for (var i = 0, ii = decode.length; i < ii; i += 2) {
+      if (decode[i] != 0 || decode[i + 1] != 1)
+        return false;
+    }
+    return true;
+  };
 
   return ColorSpace;
 })();
@@ -10596,6 +10619,9 @@ var AlternateCS = (function AlternateCSClosure() {
           baseBuf[pos++] = 255 * tinted[j];
       }
       return base.getRgbBuffer(baseBuf, 8);
+    },
+    isDefaultDecode: function altcs_isDefaultDecode(decodeMap) {
+      ColorSpace.isDefaultDecode(decodeMap, this.numComps);
     }
   };
 
@@ -10663,6 +10689,10 @@ var IndexedCS = (function IndexedCSClosure() {
       }
 
       return base.getRgbBuffer(baseBuf, 8);
+    },
+    isDefaultDecode: function indexcs_isDefaultDecode(decodeMap) {
+      // indexed color maps shouldn't be changed
+      return true;
     }
   };
   return IndexedCS;
@@ -10691,6 +10721,9 @@ var DeviceGrayCS = (function DeviceGrayCSClosure() {
         rgbBuf[j++] = c;
       }
       return rgbBuf;
+    },
+    isDefaultDecode: function graycs_isDefaultDecode(decodeMap) {
+      ColorSpace.isDefaultDecode(decodeMap, this.numComps);
     }
   };
   return DeviceGrayCS;
@@ -10715,6 +10748,9 @@ var DeviceRgbCS = (function DeviceRgbCSClosure() {
       for (i = 0; i < length; ++i)
         rgbBuf[i] = (scale * input[i]) | 0;
       return rgbBuf;
+    },
+    isDefaultDecode: function rgbcs_isDefaultDecode(decodeMap) {
+      ColorSpace.isDefaultDecode(decodeMap, this.numComps);
     }
   };
   return DeviceRgbCS;
@@ -10799,6 +10835,9 @@ var DeviceCmykCS = (function DeviceCmykCSClosure() {
       }
 
       return rgbBuf;
+    },
+    isDefaultDecode: function cmykcs_isDefaultDecode(decodeMap) {
+      ColorSpace.isDefaultDecode(decodeMap, this.numComps);
     }
   };
 
@@ -11631,7 +11670,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
               data: new Uint8Array(w * h * 4)
             };
             var pixels = imgData.data;
-            imageObj.fillRgbaBuffer(pixels, imageObj.decode);
+            imageObj.fillRgbaBuffer(pixels);
             handler.send('obj', [objId, 'Image', imgData]);
           }, handler, xref, resources, image, inline);
       }
@@ -20332,6 +20371,15 @@ var PDFImage = (function PDFImageClosure() {
       promise.resolve(image);
     }
   }
+  /**
+   * Decode and clamp a value. The formula is different from the spec because we
+   * don't decode to float range [0,1], we decode it in the [0,max] range.
+   */
+  function decodeAndClamp(value, addend, coefficient, max) {
+    value = addend + value * coefficient;
+    // Clamp the value to the range
+    return value < 0 ? 0 : value > max ? max : value;
+  }
   function PDFImage(xref, res, image, inline, smask) {
     this.image = image;
     if (image.getParams) {
@@ -20377,6 +20425,21 @@ var PDFImage = (function PDFImageClosure() {
     }
 
     this.decode = dict.get('Decode', 'D');
+    this.needsDecode = false;
+    if (this.decode && this.colorSpace &&
+        !this.colorSpace.isDefaultDecode(this.decode)) {
+      this.needsDecode = true;
+      // Do some preprocessing to avoid more math.
+      var max = (1 << bitsPerComponent) - 1;
+      this.decodeCoefficients = [];
+      this.decodeAddends = [];
+      for (var i = 0, j = 0; i < this.decode.length; i += 2, ++j) {
+        var dmin = this.decode[i];
+        var dmax = this.decode[i + 1];
+        this.decodeCoefficients[j] = dmax - dmin;
+        this.decodeAddends[j] = max * dmin;
+      }
+    }
 
     var mask = xref.fetchIfRef(dict.get('Mask'));
 
@@ -20412,22 +20475,43 @@ var PDFImage = (function PDFImageClosure() {
   };
 
   PDFImage.prototype = {
-    getComponents: function getComponents(buffer, decodeMap) {
+    getComponents: function getComponents(buffer) {
       var bpc = this.bpc;
-      if (bpc == 8)
+      var needsDecode = this.needsDecode;
+      var decodeMap = this.decode;
+
+      // This image doesn't require any extra work.
+      if (bpc == 8 && !needsDecode)
         return buffer;
 
+      var bufferLength = buffer.length;
       var width = this.width;
       var height = this.height;
       var numComps = this.numComps;
 
-      var length = width * height;
+      var length = width * height * numComps;
       var bufferPos = 0;
       var output = bpc <= 8 ? new Uint8Array(length) :
         bpc <= 16 ? new Uint16Array(length) : new Uint32Array(length);
       var rowComps = width * numComps;
+      var decodeAddends, decodeCoefficients;
+      if (needsDecode) {
+        decodeAddends = this.decodeAddends;
+        decodeCoefficients = this.decodeCoefficients;
+      }
+      var max = (1 << bpc) - 1;
 
-      if (bpc == 1) {
+      if (bpc == 8) {
+        // Optimization for reading 8 bpc images that have a decode.
+        for (var i = 0, ii = length; i < ii; ++i) {
+          var compIndex = i % numComps;
+          var value = buffer[i];
+          value = decodeAndClamp(value, decodeAddends[compIndex],
+                          decodeCoefficients[compIndex], max);
+          output[i] = value;
+        }
+      } else if (bpc == 1) {
+        // Optimization for reading 1 bpc images.
         var valueZero = 0, valueOne = 1;
         if (decodeMap) {
           valueZero = decodeMap[0] ? 1 : 0;
@@ -20452,8 +20536,7 @@ var PDFImage = (function PDFImageClosure() {
           output[i] = !(buf & mask) ? valueZero : valueOne;
         }
       } else {
-        if (decodeMap != null)
-          TODO('interpolate component values');
+        // The general case that handles all other bpc values.
         var bits = 0, buf = 0;
         for (var i = 0, ii = length; i < ii; ++i) {
           if (i % rowComps == 0) {
@@ -20467,7 +20550,13 @@ var PDFImage = (function PDFImageClosure() {
           }
 
           var remainingBits = bits - bpc;
-          output[i] = buf >> remainingBits;
+          var value = buf >> remainingBits;
+          if (needsDecode) {
+            var compIndex = i % numComps;
+            value = decodeAndClamp(value, decodeAddends[compIndex],
+                            decodeCoefficients[compIndex], max);
+          }
+          output[i] = value;
           buf = buf & ((1 << remainingBits) - 1);
           bits = remainingBits;
         }
@@ -20518,7 +20607,7 @@ var PDFImage = (function PDFImageClosure() {
         }
       }
     },
-    fillRgbaBuffer: function fillRgbaBuffer(buffer, decodeMap) {
+    fillRgbaBuffer: function fillRgbaBuffer(buffer) {
       var numComps = this.numComps;
       var width = this.width;
       var height = this.height;
@@ -20529,7 +20618,7 @@ var PDFImage = (function PDFImageClosure() {
       var imgArray = this.getImageBytes(height * rowBytes);
 
       var comps = this.colorSpace.getRgbBuffer(
-        this.getComponents(imgArray, decodeMap), bpc);
+        this.getComponents(imgArray), bpc);
       var compsPos = 0;
       var opacity = this.getOpacity();
       var opacityPos = 0;
