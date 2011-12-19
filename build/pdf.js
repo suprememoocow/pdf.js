@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '0473e04';
+  PDFJS.build = 'eaba65b';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -2264,6 +2264,17 @@ var Cmd = (function CmdClosure() {
   }
 
   Cmd.prototype = {
+  };
+
+
+  var cmdCache = {};
+
+  Cmd.get = function cmdGet(cmd) {
+    var cmdValue = cmdCache[cmd];
+    if (cmdValue)
+      return cmdValue;
+
+    return cmdCache[cmd] = new Cmd(cmd);
   };
 
   return Cmd;
@@ -23760,7 +23771,7 @@ var Parser = (function ParserClosure() {
       imageStream = this.filter(imageStream, dict, length);
       imageStream.parameters = dict;
 
-      this.buf2 = new Cmd('EI');
+      this.buf2 = Cmd.get('EI');
       this.shift();
 
       return imageStream;
@@ -24099,14 +24110,14 @@ var Lexer = (function LexerClosure() {
         // array punctuation
         case '[':
         case ']':
-          return new Cmd(ch);
+          return Cmd.get(ch);
         // hex string or dict punctuation
         case '<':
           ch = stream.lookChar();
           if (ch == '<') {
             // dict punctuation
             stream.skip();
-            return new Cmd('<<');
+            return Cmd.get('<<');
           }
           return this.getHexString(ch);
         // dict punctuation
@@ -24114,11 +24125,11 @@ var Lexer = (function LexerClosure() {
           ch = stream.lookChar();
           if (ch == '>') {
             stream.skip();
-            return new Cmd('>>');
+            return Cmd.get('>>');
           }
         case '{':
         case '}':
-          return new Cmd(ch);
+          return Cmd.get(ch);
         // fall through
         case ')':
           error('Illegal character: ' + ch);
@@ -24141,7 +24152,7 @@ var Lexer = (function LexerClosure() {
         return false;
       if (str == 'null')
         return null;
-      return new Cmd(str);
+      return Cmd.get(str);
     },
     skipToNextLine: function lexerSkipToNextLine() {
       var stream = this.stream;
