@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'd6e1c8f';
+  PDFJS.build = '9161c2e';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -1782,6 +1782,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
         ctx.translate(current.x, current.y);
 
         ctx.scale(textHScale, 1);
+        ctx.lineWidth /= current.textMatrix[0];
 
         if (textSelection) {
           this.save();
@@ -1818,6 +1819,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       } else {
         ctx.save();
         this.applyTextTransforms();
+        ctx.lineWidth /= current.textMatrix[0] * fontMatrix[0];
+
         if (textSelection)
           text.geom = this.getTextGeometry();
 
