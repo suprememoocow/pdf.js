@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '9161c2e';
+  PDFJS.build = '6a0dd63';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -2334,8 +2334,7 @@ var Name = (function NameClosure() {
     this.name = name;
   }
 
-  Name.prototype = {
-  };
+  Name.prototype = {};
 
   return Name;
 })();
@@ -2345,9 +2344,7 @@ var Cmd = (function CmdClosure() {
     this.cmd = cmd;
   }
 
-  Cmd.prototype = {
-  };
-
+  Cmd.prototype = {};
 
   var cmdCache = {};
 
@@ -2406,8 +2403,7 @@ var Ref = (function RefClosure() {
     this.gen = gen;
   }
 
-  Ref.prototype = {
-  };
+  Ref.prototype = {};
 
   return Ref;
 })();
