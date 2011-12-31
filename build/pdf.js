@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'c0cf081';
+  PDFJS.build = '78f7354';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -123,9 +123,11 @@ var Page = (function PageClosure() {
         width: this.width,
         height: this.height
       };
+      var mediaBox = this.mediaBox;
+      var offsetX = mediaBox[0], offsetY = mediaBox[1];
       if (isArray(obj) && obj.length == 4) {
-        var tl = this.rotatePoint(obj[0], obj[1]);
-        var br = this.rotatePoint(obj[2], obj[3]);
+        var tl = this.rotatePoint(obj[0] - offsetX, obj[1] - offsetY);
+        var br = this.rotatePoint(obj[2] - offsetX, obj[3] - offsetY);
         view.x = Math.min(tl.x, br.x);
         view.y = Math.min(tl.y, br.y);
         view.width = Math.abs(tl.x - br.x);
@@ -1388,6 +1390,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       }
       // Scale so that canvas units are the same as PDF user space units
       this.ctx.scale(cw / mediaBox.width, ch / mediaBox.height);
+      // Move the media left-top corner to the (0,0) canvas position
+      this.ctx.translate(-mediaBox.x, -mediaBox.y);
       this.textDivs = [];
       this.textLayerQueue = [];
     },
@@ -3377,7 +3381,6 @@ var PDFFunction = (function PDFFunctionClosure() {
 
     constructStiched: function pdfFunctionConstructStiched(fn, dict, xref) {
       var domain = dict.get('Domain');
-      var range = dict.get('Range');
 
       if (!domain)
         error('No domain');
@@ -3386,13 +3389,13 @@ var PDFFunction = (function PDFFunctionClosure() {
       if (inputSize != 1)
         error('Bad domain for stiched function');
 
-      var fnRefs = dict.get('Functions');
+      var fnRefs = xref.fetchIfRef(dict.get('Functions'));
       var fns = [];
       for (var i = 0, ii = fnRefs.length; i < ii; ++i)
         fns.push(PDFFunction.getIR(xref, xref.fetchIfRef(fnRefs[i])));
 
-      var bounds = dict.get('Bounds');
-      var encode = dict.get('Encode');
+      var bounds = xref.fetchIfRef(dict.get('Bounds'));
+      var encode = xref.fetchIfRef(dict.get('Encode'));
 
       return [CONSTRUCT_STICHED, domain, bounds, encode, fns];
     },
