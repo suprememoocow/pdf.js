@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f97f41a';
+  PDFJS.build = 'bf26c1a';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -83,8 +83,7 @@ var Page = (function PageClosure() {
     this.xref = xref;
     this.ref = ref;
 
-    this.ctx = null;
-    this.callback = null;
+    this.displayReadyPromise = null;
   }
 
   Page.prototype = {
@@ -180,20 +179,12 @@ var Page = (function PageClosure() {
                                                 IRQueue, fonts) {
       var self = this;
       this.IRQueue = IRQueue;
-      var gfx = new CanvasGraphics(this.ctx, this.objs, this.textLayer);
 
       var displayContinuation = function pageDisplayContinuation() {
         // Always defer call to display() to work around bug in
         // Firefox error reporting from XHR callbacks.
         setTimeout(function pageSetTimeout() {
-          try {
-            self.display(gfx, self.callback);
-          } catch (e) {
-            if (self.callback)
-              self.callback(e);
-            else
-              throw e;
-          }
+          self.displayReadyPromise.resolve();
         });
       };
 
@@ -410,12 +401,27 @@ var Page = (function PageClosure() {
       return items;
     },
     startRendering: function pageStartRendering(ctx, callback, textLayer)  {
-      this.ctx = ctx;
-      this.callback = callback;
-      this.textLayer = textLayer;
-
       this.startRenderingTime = Date.now();
-      this.pdf.startRendering(this);
+
+      // If there is no displayReadyPromise yet, then the IRQueue was never
+      // requested before. Make the request and create the promise.
+      if (!this.displayReadyPromise) {
+        this.pdf.startRendering(this);
+        this.displayReadyPromise = new Promise();
+      }
+
+      // Once the IRQueue and fonts are loaded, perform the actual rendering.
+      this.displayReadyPromise.then(function pageDisplayReadyPromise() {
+        var gfx = new CanvasGraphics(ctx, this.objs, textLayer);
+        try {
+          this.display(gfx, callback);
+        } catch (e) {
+          if (self.callback)
+            self.callback(e);
+          else
+            throw e;
+        }
+      }.bind(this));
     }
   };
 
@@ -1107,7 +1113,7 @@ var Promise = (function PromiseClosure() {
       }
 
       this.isResolved = true;
-      this.data = data;
+      this.data = data || null;
       var callbacks = this.callbacks;
 
       for (var i = 0, ii = callbacks.length; i < ii; i++) {
