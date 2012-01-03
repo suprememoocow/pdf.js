@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'bf26c1a';
+  PDFJS.build = '27d2d99';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -15058,7 +15058,7 @@ var Font = (function FontClosure() {
                  window.btoa(data) + ');');
       var rule = "@font-face { font-family:'" + fontName + "';src:" + url + '}';
 
-      document.documentElement.firstChild.appendChild(
+      document.documentElement.getElementsByTagName('head')[0].appendChild(
         document.createElement('style'));
 
       var styleSheet = document.styleSheets[document.styleSheets.length - 1];
