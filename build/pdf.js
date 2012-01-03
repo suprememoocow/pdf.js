@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '073bd60';
+  PDFJS.build = 'f97f41a';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -1496,6 +1496,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     setDash: function canvasGraphicsSetDash(dashArray, dashPhase) {
       this.ctx.mozDash = dashArray;
       this.ctx.mozDashOffset = dashPhase;
+      this.ctx.webkitLineDash = dashArray;
+      this.ctx.webkitLineDashOffset = dashPhase;
     },
     setRenderingIntent: function canvasGraphicsSetRenderingIntent(intent) {
       TODO('set rendering intent: ' + intent);
