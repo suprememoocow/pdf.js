@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'fbb9acc';
+  PDFJS.build = '5127403';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -411,17 +411,25 @@ var Page = (function PageClosure() {
       }
 
       // Once the IRQueue and fonts are loaded, perform the actual rendering.
-      this.displayReadyPromise.then(function pageDisplayReadyPromise() {
-        var gfx = new CanvasGraphics(ctx, this.objs, textLayer);
-        try {
-          this.display(gfx, callback);
-        } catch (e) {
-          if (self.callback)
-            self.callback(e);
+      this.displayReadyPromise.then(
+        function pageDisplayReadyPromise() {
+          var gfx = new CanvasGraphics(ctx, this.objs, textLayer);
+          try {
+            this.display(gfx, callback);
+          } catch (e) {
+            if (callback)
+              callback(e);
+            else
+              throw e;
+          }
+        }.bind(this),
+        function pageDisplayReadPromiseError(reason) {
+          if (callback)
+            callback(reason);
           else
-            throw e;
+            throw reason;
         }
-      }.bind(this));
+      );
     }
   };
 
@@ -735,8 +743,8 @@ var PDFDoc = (function PDFDocClosure() {
 
       messageHandler.on('page_error', function pdfDocError(data) {
         var page = this.pageCache[data.pageNum];
-        if (page.callback)
-          page.callback(data.error);
+        if (page.displayReadyPromise)
+          page.displayReadyPromise.reject(data.error);
         else
           throw data.error;
       }, this);
@@ -1035,6 +1043,8 @@ var Promise = (function PromiseClosure() {
    */
   function Promise(name, data) {
     this.name = name;
+    this.isRejected = false;
+    this.error = null;
     // If you build a promise and pass in some data it's already resolved.
     if (data != null) {
       this.isResolved = true;
@@ -1045,6 +1055,7 @@ var Promise = (function PromiseClosure() {
       this._data = EMPTY_PROMISE;
     }
     this.callbacks = [];
+    this.errbacks = [];
   };
   /**
    * Builds a promise that is resolved when all the passed in promises are
@@ -1111,6 +1122,9 @@ var Promise = (function PromiseClosure() {
       if (this.isResolved) {
         throw 'A Promise can be resolved only once ' + this.name;
       }
+      if (this.isRejected) {
+        throw 'The Promise was already rejected ' + this.name;
+      }
 
       this.isResolved = true;
       this.data = data || null;
@@ -1121,7 +1135,24 @@ var Promise = (function PromiseClosure() {
       }
     },
 
-    then: function promiseThen(callback) {
+    reject: function proimseReject(reason) {
+      if (this.isRejected) {
+        throw 'A Promise can be rejected only once ' + this.name;
+      }
+      if (this.isResolved) {
+        throw 'The Promise was already resolved ' + this.name;
+      }
+
+      this.isRejected = true;
+      this.error = reason || null;
+      var errbacks = this.errbacks;
+
+      for (var i = 0, ii = errbacks.length; i < ii; i++) {
+        errbacks[i].call(null, reason);
+      }
+    },
+
+    then: function promiseThen(callback, errback) {
       if (!callback) {
         throw 'Requiring callback' + this.name;
       }
@@ -1130,8 +1161,13 @@ var Promise = (function PromiseClosure() {
       if (this.isResolved) {
         var data = this.data;
         callback.call(null, data);
+      } else if (this.isRejected && errorback) {
+        var error = this.error;
+        errback.call(null, error);
       } else {
         this.callbacks.push(callback);
+        if (errback)
+          this.errbacks.push(errback);
       }
     }
   };
