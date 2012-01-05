@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '5760d1e';
+  PDFJS.build = '0817c42';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -552,13 +552,15 @@ var PDFDocModel = (function PDFDocModelClosure() {
     },
     setup: function pdfDocSetup(ownerPassword, userPassword) {
       this.checkHeader();
-      this.xref = new XRef(this.stream,
-                           this.startXRef,
-                           this.mainXRefEntriesOffset);
-      this.catalog = new Catalog(this.xref);
-      if (this.xref.trailer && this.xref.trailer.has('ID')) {
+      var xref = new XRef(this.stream,
+                          this.startXRef,
+                          this.mainXRefEntriesOffset);
+      this.xref = xref;
+      this.catalog = new Catalog(xref);
+      if (xref.trailer && xref.trailer.has('ID')) {
         var fileID = '';
-        this.xref.trailer.get('ID')[0].split('').forEach(function(el) {
+        var id = xref.fetchIfRef(xref.trailer.get('ID'))[0];
+        id.split('').forEach(function(el) {
           fileID += Number(el.charCodeAt(0)).toString(16);
         });
         this.fileID = fileID;
