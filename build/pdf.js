@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'e9cd29c';
+  PDFJS.build = '4bb289e';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -12301,7 +12301,8 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         args = [objId, w, h];
 
         var softMask = dict.get('SMask', 'IM') || false;
-        if (!softMask && image instanceof JpegStream && image.isNative) {
+        if (!softMask && image instanceof JpegStream &&
+            image.isNativelySupported(xref, resources)) {
           // These JPEGs don't need any more processing so we can just send it.
           fn = 'paintJpegXObject';
           handler.send('obj', [objId, 'JpegStream', image.getIR()]);
@@ -21005,7 +21006,7 @@ var PDFImage = (function PDFImageClosure() {
    * when the image data is ready.
    */
   function handleImageData(handler, xref, res, image, promise) {
-    if (image instanceof JpegStream && image.isNative) {
+    if (image instanceof JpegStream && image.isNativelyDecodable(xref, res)) {
       // For natively supported jpegs send them to the main thread for decoding.
       var dict = image.dict;
       var colorSpace = dict.get('ColorSpace', 'CS');
@@ -26059,28 +26060,15 @@ var JpegStream = (function JpegStreamClosure() {
     // need to be removed
     this.dict = dict;
 
-    // Flag indicating wether the image can be natively loaded.
-    this.isNative = true;
-
-    this.colorTransform = -1;
+    this.isAdobeImage = false;
+    this.colorTransform = dict.get('ColorTransform') || -1;
 
     if (isAdobeImage(bytes)) {
-      // when bug 674619 land, let's check if browser can do
-      // normal cmyk and then we won't have to the following
-      var cs = xref.fetchIfRef(dict.get('ColorSpace'));
-
-      // DeviceRGB and DeviceGray are the only Adobe images that work natively
-      if (isName(cs) && (cs.name === 'DeviceRGB' || cs.name === 'DeviceGray')) {
-        bytes = fixAdobeImage(bytes);
-        this.src = bytesToString(bytes);
-      } else {
-        this.colorTransform = dict.get('ColorTransform');
-        this.isNative = false;
-        this.bytes = bytes;
-      }
-    } else {
-      this.src = bytesToString(bytes);
+      this.isAdobeImage = true;
+      bytes = fixAdobeImage(bytes);
     }
+
+    this.bytes = bytes;
 
     DecodeStream.call(this);
   }
@@ -26091,7 +26079,8 @@ var JpegStream = (function JpegStreamClosure() {
     if (this.bufferLength)
       return;
     var jpegImage = new JpegImage();
-    jpegImage.colorTransform = this.colorTransform;
+    if (this.colorTransform != -1)
+      jpegImage.colorTransform = this.colorTransform;
     jpegImage.parse(this.bytes);
     var width = jpegImage.width;
     var height = jpegImage.height;
@@ -26100,10 +26089,38 @@ var JpegStream = (function JpegStreamClosure() {
     this.bufferLength = data.length;
   };
   JpegStream.prototype.getIR = function jpegStreamGetIR() {
-    return this.src;
+    return bytesToString(this.bytes);
   };
   JpegStream.prototype.getChar = function jpegStreamGetChar() {
       error('internal error: getChar is not valid on JpegStream');
+  };
+  /**
+   * Checks if the image can be decoded and displayed by the browser without any
+   * further processing such as color space conversions.
+   */
+  JpegStream.prototype.isNativelySupported = function isNativelySupported(xref,
+                                                                          res) {
+    var cs = ColorSpace.parse(this.dict.get('ColorSpace'), xref, res);
+    // when bug 674619 lands, let's check if browser can do
+    // normal cmyk and then we won't need to decode in JS
+    if (cs.name === 'DeviceGray' || cs.name === 'DeviceRGB')
+      return true;
+    if (cs.name === 'DeviceCMYK' && !this.isAdobeImage &&
+        this.colorTransform < 1)
+      return true;
+    return false;
+  };
+  /**
+   * Checks if the image can be decoded by the browser.
+   */
+  JpegStream.prototype.isNativelyDecodable = function isNativelyDecodable(xref,
+                                                                          res) {
+    var cs = ColorSpace.parse(this.dict.get('ColorSpace'), xref, res);
+    var numComps = cs.numComps;
+    if (numComps == 1 || numComps == 3)
+      return true;
+
+    return false;
   };
 
   return JpegStream;
