@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '00e1f81';
+  PDFJS.build = 'f8f1723';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -12208,7 +12208,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var self = this;
       var xref = this.xref;
       var handler = this.handler;
-      var uniquePrefix = this.uniquePrefix;
+      var uniquePrefix = this.uniquePrefix || '';
 
       function insertDependency(depList) {
         fnArray.push('dependency');
@@ -12325,7 +12325,6 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           }, handler, xref, resources, image, inline);
       }
 
-      uniquePrefix = uniquePrefix || '';
       if (!queue.argsArray) {
         queue.argsArray = [];
       }
