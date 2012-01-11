@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '8ce8a0c';
+  PDFJS.build = '15bbbdc';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -209,6 +209,9 @@ var Page = (function PageClosure() {
         for (i = 0; i < n; ++i)
           content[i] = xref.fetchIfRef(content[i]);
         content = new StreamsSequenceStream(content);
+      } else if (!content) {
+        // replacing non-existent page content with empty one
+        content = new Stream(new Uint8Array(0));
       }
 
       var pe = this.pe = new PartialEvaluator(
