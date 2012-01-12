@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'be2f973';
+  PDFJS.build = '93bb2cf';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -642,8 +642,7 @@ var PDFDoc = (function PDFDocClosure() {
         var worker = new Worker(workerSrc);
 
         var messageHandler = new MessageHandler('main', worker);
-        // Tell the worker the file it was created from.
-        messageHandler.send('workerSrc', workerSrc);
+
         messageHandler.on('test', function pdfDocTest(supportTypedArray) {
           if (supportTypedArray) {
             this.worker = worker;
@@ -27515,13 +27514,6 @@ var WorkerMessageHandler = {
 
     handler.on('test', function wphSetupTest(data) {
       handler.send('test', data instanceof Uint8Array);
-    });
-
-    handler.on('workerSrc', function wphSetupWorkerSrc(data) {
-      // In development, the `workerSrc` message is handled in the
-      // `worker_loader.js` file. In production the workerProcessHandler is
-      // called for this. This servers as a dummy to prevent calling an
-      // undefined action `workerSrc`.
     });
 
     handler.on('doc', function wphSetupDoc(data) {
