@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'a908827';
+  PDFJS.build = '39284d4';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -2013,8 +2013,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     },
     setStrokeColor: function canvasGraphicsSetStrokeColor(/*...*/) {
       var cs = this.current.strokeColorSpace;
-      var color = cs.getRgb(arguments);
-      var color = Util.makeCssRgb.apply(null, cs.getRgb(arguments));
+      var rgbColor = cs.getRgb(arguments);
+      var color = Util.makeCssRgb(rgbColor[0], rgbColor[1], rgbColor[2]);
       this.ctx.strokeStyle = color;
       this.current.strokeColor = color;
     },
@@ -2051,7 +2051,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     },
     setFillColor: function canvasGraphicsSetFillColor(/*...*/) {
       var cs = this.current.fillColorSpace;
-      var color = Util.makeCssRgb.apply(null, cs.getRgb(arguments));
+      var rgbColor = cs.getRgb(arguments);
+      var color = Util.makeCssRgb(rgbColor[0], rgbColor[1], rgbColor[2]);
       this.ctx.fillStyle = color;
       this.current.fillColor = color;
     },
@@ -25086,9 +25087,9 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
 
     var colorStops = [];
     for (var i = t0; i <= t1; i += step) {
-      var color = fn([i]);
-      var rgbColor = Util.makeCssRgb.apply(this, cs.getRgb(color));
-      colorStops.push([(i - t0) / diff, rgbColor]);
+      var rgbColor = cs.getRgb(fn([i]));
+      var cssColor = Util.makeCssRgb(rgbColor[0], rgbColor[1], rgbColor[2]);
+      colorStops.push([(i - t0) / diff, cssColor]);
     }
 
     this.colorStops = colorStops;
@@ -25226,9 +25227,9 @@ var TilingPattern = (function TilingPatternClosure() {
         tmpCtx.strokeStyle = ctx.strokeStyle;
         break;
       case PaintType.UNCOLORED:
-        color = Util.makeCssRgb.apply(this, color);
-        tmpCtx.fillStyle = color;
-        tmpCtx.strokeStyle = color;
+        var cssColor = Util.makeCssRgb(this, color[0], color[1], color[2]);
+        tmpCtx.fillStyle = cssColor;
+        tmpCtx.strokeStyle = cssColor;
         break;
       default:
         error('Unsupported paint type: ' + paintType);
