@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'ee8c86d';
+  PDFJS.build = 'aaa193c';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -1229,6 +1229,7 @@ var CanvasExtraState = (function CanvasExtraStateClosure() {
     // Note: fill alpha applies to all non-stroking operations
     this.fillAlpha = 1;
     this.strokeAlpha = 1;
+    this.lineWidth = 1;
 
     this.old = old;
   }
@@ -1510,6 +1511,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
 
     // Graphics state
     setLineWidth: function canvasGraphicsSetLineWidth(width) {
+      this.current.lineWidth = width;
       this.ctx.lineWidth = width;
     },
     setLineCap: function canvasGraphicsSetLineCap(style) {
@@ -1623,6 +1625,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       consumePath = typeof consumePath !== 'undefined' ? consumePath : true;
       var ctx = this.ctx;
       var strokeColor = this.current.strokeColor;
+      if (this.current.lineWidth === 0)
+        ctx.lineWidth = this.getSinglePixelWidth();
       // For stroke we want to temporarily change the global alpha to the
       // stroking alpha.
       ctx.globalAlpha = this.current.strokeAlpha;
@@ -1821,7 +1825,6 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
         ctx.translate(current.x, current.y);
 
         ctx.scale(textHScale, 1);
-        ctx.lineWidth /= current.textMatrix[0];
 
         if (textSelection) {
           this.save();
@@ -1858,7 +1861,15 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       } else {
         ctx.save();
         this.applyTextTransforms();
-        ctx.lineWidth /= current.textMatrix[0] * fontMatrix[0];
+
+        var lineWidth = current.lineWidth;
+        var scale = Math.abs(current.textMatrix[0] * fontMatrix[0]);
+        if (scale == 0 || lineWidth == 0)
+          lineWidth = this.getSinglePixelWidth();
+        else
+          lineWidth /= scale;
+
+        ctx.lineWidth = lineWidth;
 
         if (textSelection)
           text.geom = this.getTextGeometry();
@@ -2323,6 +2334,10 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     },
     restoreFillRule: function canvasGraphicsRestoreFillRule(rule) {
       this.ctx.mozFillRule = rule;
+    },
+    getSinglePixelWidth: function getSinglePixelWidth(scale) {
+      var inverse = this.ctx.mozCurrentTransformInverse;
+      return Math.abs(inverse[0] + inverse[2]);
     }
   };
 
