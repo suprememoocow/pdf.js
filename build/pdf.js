@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '36cf14b';
+  PDFJS.build = '67769f3';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -15230,9 +15230,8 @@ var Font = (function FontClosure() {
           }
 
           // MacRoman encoding address by re-encoding the cmap table
-          unicode = glyphName in GlyphsUnicode ?
-            GlyphsUnicode[glyphName] :
-            this.glyphNameMap[glyphName];
+          unicode = glyphName in this.glyphNameMap ?
+            this.glyphNameMap[glyphName] : GlyphsUnicode[glyphName];
           break;
         default:
           warn('Unsupported font type: ' + this.type);
