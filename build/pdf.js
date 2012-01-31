@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '2047fba';
+  PDFJS.build = '589410d';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -12552,8 +12552,10 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           properties.cidToGidMap = this.readCidToGidMap(cidToGidMap);
       }
 
+      var flags = properties.flags;
       var differences = [];
-      var baseEncoding = Encodings.StandardEncoding;
+      var baseEncoding = !!(flags & FontFlags.Symbolic) ?
+                         Encodings.symbolsEncoding : Encodings.StandardEncoding;
       var hasEncoding = dict.has('Encoding');
       if (hasEncoding) {
         var encoding = xref.fetchIfRef(dict.get('Encoding'));
@@ -12832,8 +12834,9 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           // Simulating descriptor flags attribute
           var fontNameWoStyle = baseFontName.split('-')[0];
           var flags = (serifFonts[fontNameWoStyle] ||
-            (fontNameWoStyle.search(/serif/gi) != -1) ? 2 : 0) |
-            (symbolsFonts[fontNameWoStyle] ? 4 : 32);
+            (fontNameWoStyle.search(/serif/gi) != -1) ? FontFlags.Serif : 0) |
+            (symbolsFonts[fontNameWoStyle] ? FontFlags.Symbolic :
+            FontFlags.Nonsymbolic);
 
           var properties = {
             type: type.name,
@@ -12974,6 +12977,18 @@ var kPDFGlyphSpaceUnits = 1000;
 
 // Until hinting is fully supported this constant can be used
 var kHintingEnabled = false;
+
+var FontFlags = {
+  FixedPitch: 1,
+  Serif: 2,
+  Symbolic: 4,
+  Script: 8,
+  Nonsymbolic: 32,
+  Italic: 64,
+  AllCap: 65536,
+  SmallCap: 131072,
+  ForceBold: 262144
+};
 
 var Encodings = {
   get ExpertEncoding() {
@@ -13116,19 +13131,20 @@ var Encodings = {
       'bracketleft', 'backslash', 'bracketright', 'asciicircum', 'underscore',
       'quoteleft', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
       'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-      'braceleft', 'bar', 'braceright', 'asciitilde', '', '', 'exclamdown',
-      'cent', 'sterling', 'fraction', 'yen', 'florin', 'section', 'currency',
-      'quotesingle', 'quotedblleft', 'guillemotleft', 'guilsinglleft',
-      'guilsinglright', 'fi', 'fl', '', 'endash', 'dagger', 'daggerdbl',
-      'periodcentered', '', 'paragraph', 'bullet', 'quotesinglbase',
-      'quotedblbase', 'quotedblright', 'guillemotright', 'ellipsis',
-      'perthousand', '', 'questiondown', '', 'grave', 'acute', 'circumflex',
-      'tilde', 'macron', 'breve', 'dotaccent', 'dieresis', '', 'ring',
-      'cedilla', '', 'hungarumlaut', 'ogonek', 'caron', 'emdash', '', '', '',
-      '', '', '', '', '', '', '', '', '', '', '', '', '', 'AE', '',
-      'ordfeminine', '', '', '', '', 'Lslash', 'Oslash', 'OE', 'ordmasculine',
-      '', '', '', '', '', 'ae', '', '', '', 'dotlessi', '', '', 'lslash',
-      'oslash', 'oe', 'germandbls'
+      'braceleft', 'bar', 'braceright', 'asciitilde', '', '', '', '', '', '',
+      '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+      '', '', '', '', '', '', '', '', '', '', 'exclamdown', 'cent', 'sterling',
+      'fraction', 'yen', 'florin', 'section', 'currency', 'quotesingle',
+      'quotedblleft', 'guillemotleft', 'guilsinglleft', 'guilsinglright', 'fi',
+      'fl', '', 'endash', 'dagger', 'daggerdbl', 'periodcentered', '',
+      'paragraph', 'bullet', 'quotesinglbase', 'quotedblbase', 'quotedblright',
+      'guillemotright', 'ellipsis', 'perthousand', '', 'questiondown', '',
+      'grave', 'acute', 'circumflex', 'tilde', 'macron', 'breve', 'dotaccent',
+      'dieresis', '', 'ring', 'cedilla', '', 'hungarumlaut', 'ogonek', 'caron',
+      'emdash', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+      'AE', '', 'ordfeminine', '', '', '', '', 'Lslash', 'Oslash', 'OE',
+      'ordmasculine', '', '', '', '', '', 'ae', '', '', '', 'dotlessi', '', '',
+      'lslash', 'oslash', 'oe', 'germandbls'
     ]);
   },
   get WinAnsiEncoding() {
@@ -13360,6 +13376,19 @@ var serifFonts = {
 var symbolsFonts = {
   'Dingbats': true, 'Symbol': true, 'ZapfDingbats': true
 };
+
+// Some characters, e.g. copyrightserif, mapped to the private use area and
+// might not be displayed using standard fonts. Mapping/hacking well-known chars
+// to the similar equivalents in the normal characters range.
+function mapPrivateUseChars(code) {
+  switch (code) {
+    case 0xF8E9: // copyrightsans
+    case 0xF6D9: // copyrightserif
+      return 0x00A9; // copyright
+    default:
+      return code;
+  }
+}
 
 var FontLoader = {
   listeningForFontLoad: false,
@@ -13717,8 +13746,8 @@ var Font = (function FontClosure() {
     var names = name.split('+');
     names = names.length > 1 ? names[1] : names[0];
     names = names.split(/[-,_]/g)[0];
-    this.isSerifFont = !!(properties.flags & 2);
-    this.isSymbolicFont = !!(properties.flags & 4);
+    this.isSerifFont = !!(properties.flags & FontFlags.Serif);
+    this.isSymbolicFont = !!(properties.flags & FontFlags.Symbolic);
 
     var type = properties.type;
     this.type = type;
@@ -15142,7 +15171,7 @@ var Font = (function FontClosure() {
         case 'CIDFontType0':
           if (this.noUnicodeAdaptation) {
             width = this.widths[this.unicodeToCID[charcode] || charcode];
-            unicode = charcode;
+            unicode = mapPrivateUseChars(charcode);
             break;
           }
           unicode = this.toUnicode[charcode] || charcode;
@@ -15150,7 +15179,7 @@ var Font = (function FontClosure() {
         case 'CIDFontType2':
           if (this.noUnicodeAdaptation) {
             width = this.widths[this.unicodeToCID[charcode] || charcode];
-            unicode = charcode;
+            unicode = mapPrivateUseChars(charcode);
             break;
           }
           unicode = this.toUnicode[charcode] || charcode;
@@ -15160,7 +15189,7 @@ var Font = (function FontClosure() {
           if (!isNum(width))
             width = this.widths[glyphName];
           if (this.noUnicodeAdaptation) {
-            unicode = GlyphsUnicode[glyphName] || charcode;
+            unicode = mapPrivateUseChars(GlyphsUnicode[glyphName] || charcode);
             break;
           }
           unicode = this.glyphNameMap[glyphName] ||
