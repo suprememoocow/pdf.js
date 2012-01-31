@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '0ee8151';
+  PDFJS.build = '2047fba';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -423,14 +423,14 @@ var Page = (function PageClosure() {
             if (callback)
               callback(e);
             else
-              throw e;
+              error(e);
           }
         }.bind(this),
         function pageDisplayReadPromiseError(reason) {
           if (callback)
             callback(reason);
           else
-            throw reason;
+            error(reason);
         }
       );
     }
@@ -633,7 +633,7 @@ var PDFDoc = (function PDFDocClosure() {
     if (!globalScope.PDFJS.disableWorker && typeof Worker !== 'undefined') {
       var workerSrc = PDFJS.workerSrc;
       if (typeof workerSrc === 'undefined') {
-        throw 'No PDFJS.workerSrc specified';
+        error('No PDFJS.workerSrc specified');
       }
 
       try {
@@ -729,7 +729,7 @@ var PDFDoc = (function PDFDocClosure() {
             });
             break;
           default:
-            throw 'Got unkown object type ' + type;
+            error('Got unkown object type ' + type);
         }
       }, this);
 
@@ -750,7 +750,7 @@ var PDFDoc = (function PDFDocClosure() {
         if (page.displayReadyPromise)
           page.displayReadyPromise.reject(data.error);
         else
-          throw data.error;
+          error(data.error);
       }, this);
 
       messageHandler.on('jpeg_decode', function(data, promise) {
@@ -1096,8 +1096,8 @@ var Promise = (function PromiseClosure() {
         return;
       }
       if (this._data !== EMPTY_PROMISE) {
-        throw 'Promise ' + this.name +
-                                ': Cannot set the data of a promise twice';
+        error('Promise ' + this.name +
+              ': Cannot set the data of a promise twice');
       }
       this._data = value;
       this.hasData = true;
@@ -1109,7 +1109,7 @@ var Promise = (function PromiseClosure() {
 
     get data() {
       if (this._data === EMPTY_PROMISE) {
-        throw 'Promise ' + this.name + ': Cannot get data that isn\'t set';
+        error('Promise ' + this.name + ': Cannot get data that isn\'t set');
       }
       return this._data;
     },
@@ -1124,10 +1124,10 @@ var Promise = (function PromiseClosure() {
 
     resolve: function promiseResolve(data) {
       if (this.isResolved) {
-        throw 'A Promise can be resolved only once ' + this.name;
+        error('A Promise can be resolved only once ' + this.name);
       }
       if (this.isRejected) {
-        throw 'The Promise was already rejected ' + this.name;
+        error('The Promise was already rejected ' + this.name);
       }
 
       this.isResolved = true;
@@ -1141,10 +1141,10 @@ var Promise = (function PromiseClosure() {
 
     reject: function proimseReject(reason) {
       if (this.isRejected) {
-        throw 'A Promise can be rejected only once ' + this.name;
+        error('A Promise can be rejected only once ' + this.name);
       }
       if (this.isResolved) {
-        throw 'The Promise was already resolved ' + this.name;
+        error('The Promise was already resolved ' + this.name);
       }
 
       this.isRejected = true;
@@ -1158,7 +1158,7 @@ var Promise = (function PromiseClosure() {
 
     then: function promiseThen(callback, errback) {
       if (!callback) {
-        throw 'Requiring callback' + this.name;
+        error('Requiring callback' + this.name);
       }
 
       // If the promise is already resolved, call the callback directly.
@@ -1729,7 +1729,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var fontObj = this.objs.get(fontRefName).fontObj;
 
       if (!fontObj) {
-        throw 'Can\'t find font for ' + fontRefName;
+        error('Can\'t find font for ' + fontRefName);
       }
 
       var name = fontObj.loadedName || 'sans-serif';
@@ -2047,7 +2047,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       } else if (IR[0] == 'RadialAxial' || IR[0] == 'Dummy') {
         var pattern = Pattern.shadingFromIR(this.ctx, IR);
       } else {
-        throw 'Unkown IR type';
+        error('Unkown IR type ' + IR[0]);
       }
       return pattern;
     },
@@ -2955,7 +2955,7 @@ var XRef = (function XRefClosure() {
       var stream, parser;
       if (e.uncompressed) {
         if (e.gen != gen)
-          throw ('inconsistent generation in XRef');
+          error('inconsistent generation in XRef');
         stream = this.stream.makeSubStream(e.offset);
         parser = new Parser(new Lexer(stream), true, this);
         var obj1 = parser.getObj();
@@ -3084,7 +3084,7 @@ var PDFObjects = (function PDFObjectsClosure() {
       // If there isn't an object yet or the object isn't resolved, then the
       // data isn't ready yet!
       if (!obj || !obj.isResolved) {
-        throw 'Requesting object that isn\'t resolved yet ' + objId;
+        error('Requesting object that isn\'t resolved yet ' + objId);
         return null;
       } else {
         return obj.data;
@@ -26106,15 +26106,19 @@ var JpegStream = (function JpegStreamClosure() {
   JpegStream.prototype.ensureBuffer = function jpegStreamEnsureBuffer(req) {
     if (this.bufferLength)
       return;
-    var jpegImage = new JpegImage();
-    if (this.colorTransform != -1)
-      jpegImage.colorTransform = this.colorTransform;
-    jpegImage.parse(this.bytes);
-    var width = jpegImage.width;
-    var height = jpegImage.height;
-    var data = jpegImage.getData(width, height);
-    this.buffer = data;
-    this.bufferLength = data.length;
+    try {
+      var jpegImage = new JpegImage();
+      if (this.colorTransform != -1)
+        jpegImage.colorTransform = this.colorTransform;
+      jpegImage.parse(this.bytes);
+      var width = jpegImage.width;
+      var height = jpegImage.height;
+      var data = jpegImage.getData(width, height);
+      this.buffer = data;
+      this.bufferLength = data.length;
+    } catch (e) {
+      error('JPEG error: ' + e);
+    }
   };
   JpegStream.prototype.getIR = function jpegStreamGetIR() {
     return bytesToString(this.bytes);
@@ -27596,7 +27600,7 @@ function MessageHandler(name, comObj) {
         delete callbacks[callbackId];
         callback(data.data);
       } else {
-        throw 'Cannot resolve callback ' + callbackId;
+        error('Cannot resolve callback ' + callbackId);
       }
     } else if (data.action in ah) {
       var action = ah[data.action];
@@ -27614,7 +27618,7 @@ function MessageHandler(name, comObj) {
         action[0].call(action[1], data.data);
       }
     } else {
-      throw 'Unkown action from worker: ' + data.action;
+      error('Unkown action from worker: ' + data.action);
     }
   };
 }
@@ -27623,7 +27627,7 @@ MessageHandler.prototype = {
   on: function messageHandlerOn(actionName, handler, scope) {
     var ah = this.actionHandler;
     if (ah[actionName]) {
-      throw 'There is already an actionName called "' + actionName + '"';
+      error('There is already an actionName called "' + actionName + '"');
     }
     ah[actionName] = [handler, scope];
   },
@@ -27778,6 +27782,7 @@ var workerConsole = {
       action: 'console_error',
       data: args
     });
+    throw 'pdf.js execution error';
   },
 
   time: function time(name) {
@@ -27787,7 +27792,7 @@ var workerConsole = {
   timeEnd: function timeEnd(name) {
     var time = consoleTimer[name];
     if (time == null) {
-      throw 'Unkown timer name ' + name;
+      error('Unkown timer name ' + name);
     }
     this.log('Timer:', name, Date.now() - time);
   }
@@ -29765,7 +29770,7 @@ var JpxImage = (function JpxImageClosure() {
         }
         r = 0;
       }
-      throw 'Out of packets';
+      error('JPX error: Out of packets');
     };
   }
   function ResolutionLayerComponentPositionIterator(context) {
@@ -29804,7 +29809,7 @@ var JpxImage = (function JpxImageClosure() {
         }
         l = 0;
       }
-      throw 'Out of packets';
+      error('JPX error: Out of packets');
     };
   }
   function buildPackets(context) {
@@ -29900,7 +29905,7 @@ var JpxImage = (function JpxImageClosure() {
           new ResolutionLayerComponentPositionIterator(context);
         break;
       default:
-        throw 'Unsupported progression order';
+        error('JPX error: Unsupported progression order ' + progressionOrder);
     }
   }
   function parseTilePackets(context, data, offset, dataLength) {
@@ -30302,7 +30307,7 @@ var JpxImage = (function JpxImageClosure() {
         if (lbox == 0)
           lbox = length - position + headerSize;
         if (lbox < headerSize)
-          throw 'Invalid box field size';
+          error('JPX error: Invalid box field size');
         var dataLength = lbox - headerSize;
         var jumpDataLength = true;
         switch (tbox) {
@@ -30388,7 +30393,7 @@ var JpxImage = (function JpxImageClosure() {
                 scalarExpounded = true;
                 break;
               default:
-                throw 'Invalid SQcd value';
+                error('JPX error: Invalid SQcd value ' + sqcd);
             }
             qcd.noQuantization = spqcdSize == 8;
             qcd.scalarExpounded = scalarExpounded;
@@ -30441,7 +30446,7 @@ var JpxImage = (function JpxImageClosure() {
                 scalarExpounded = true;
                 break;
               default:
-                throw 'Invalid SQcd value';
+                error('JPX error: Invalid SQcd value ' + sqcd);
             }
             qcc.noQuantization = spqcdSize == 8;
             qcc.scalarExpounded = scalarExpounded;
@@ -30508,7 +30513,7 @@ var JpxImage = (function JpxImageClosure() {
                 cod.terminationOnEachCodingPass ||
                 cod.verticalyStripe || cod.predictableTermination ||
                 cod.segmentationSymbolUsed)
-              throw 'Unsupported COD options: ' + uneval(cod);
+              error('JPX error: Unsupported COD options: ' + uneval(cod));
 
             if (context.mainHeader)
               context.COD = cod;
@@ -30553,7 +30558,7 @@ var JpxImage = (function JpxImageClosure() {
             // skipping content
             break;
           default:
-            throw 'Unknown codestream code: ' + code.toString(16);
+            error('JPX error: Unknown codestream code: ' + code.toString(16));
         }
         position += length;
       }
