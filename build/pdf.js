@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '1212d58';
+  PDFJS.build = 'b3fb41c';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -946,6 +946,10 @@ var Util = (function UtilClosure() {
     return [xt, yt];
   };
 
+  Util.sign = function sign(num) {
+    return num < 0 ? -1 : 1;
+  };
+
   return Util;
 })();
 
@@ -1216,6 +1220,7 @@ var CanvasExtraState = (function CanvasExtraStateClosure() {
     this.alphaIsShape = false;
     this.fontSize = 0;
     this.textMatrix = IDENTITY_MATRIX;
+    this.fontMatrix = IDENTITY_MATRIX;
     this.leading = 0;
     // Current point (in user coordinates)
     this.x = 0;
@@ -1739,12 +1744,32 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     },
     setFont: function canvasGraphicsSetFont(fontRefName, size) {
       var fontObj = this.objs.get(fontRefName).fontObj;
+      var current = this.current;
 
-      if (!fontObj) {
+      if (!fontObj)
         error('Can\'t find font for ' + fontRefName);
+
+      // Slice-clone matrix so we can manipulate it without affecting original
+      if (fontObj.fontMatrix)
+        current.fontMatrix = fontObj.fontMatrix.slice(0);
+      else
+        current.fontMatrix = IDENTITY_MATRIX.slice(0);
+
+      // A valid matrix needs all main diagonal elements to be non-zero
+      // This also ensures we bypass FF bugzilla bug #719844.
+      if (current.fontMatrix[0] === 0 ||
+          current.fontMatrix[3] === 0) {
+        warn('Invalid font matrix for font ' + fontRefName);
       }
 
-      var name = fontObj.loadedName || 'sans-serif';
+      // The spec for Tf (setFont) says that 'size' specifies the font 'scale',
+      // and in some docs this can be negative (inverted x-y axes).
+      // We implement this condition with fontMatrix.
+      if (size < 0) {
+        size = -size;
+        current.fontMatrix[0] *= -1;
+        current.fontMatrix[3] *= -1;
+      }
 
       this.current.font = fontObj;
       this.current.fontSize = size;
@@ -1788,7 +1813,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var ctx = this.ctx;
       var current = this.current;
       var textHScale = current.textHScale;
-      var fontMatrix = current.font.fontMatrix || IDENTITY_MATRIX;
+      var fontMatrix = current.fontMatrix || IDENTITY_MATRIX;
 
       ctx.transform.apply(ctx, current.textMatrix);
       ctx.scale(1, -1);
@@ -1822,7 +1847,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var charSpacing = current.charSpacing;
       var wordSpacing = current.wordSpacing;
       var textHScale = current.textHScale;
-      var fontMatrix = font.fontMatrix || IDENTITY_MATRIX;
+      var fontMatrix = current.fontMatrix || IDENTITY_MATRIX;
       var textHScale2 = textHScale * fontMatrix[0];
       var glyphsLength = glyphs.length;
       var textLayer = this.textLayer;
@@ -1860,7 +1885,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
           this.restore();
 
           var transformed = Util.applyTransform([glyph.width, 0], fontMatrix);
-          var width = transformed[0] * fontSize + charSpacing;
+          var width = transformed[0] * fontSize +
+              Util.sign(current.fontMatrix[0]) * charSpacing;
 
           ctx.translate(width, 0);
           current.x += width * textHScale;
@@ -1886,44 +1912,45 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
         if (textSelection)
           text.geom = this.getTextGeometry();
 
-        var width = 0;
+        var x = 0;
         for (var i = 0; i < glyphsLength; ++i) {
           var glyph = glyphs[i];
           if (glyph === null) {
             // word break
-            width += wordSpacing;
+            x += Util.sign(current.fontMatrix[0]) * wordSpacing;
             continue;
           }
 
           var char = glyph.fontChar;
-          var charWidth = glyph.width * fontSize * 0.001 + charSpacing;
+          var charWidth = glyph.width * fontSize * 0.001 +
+              Util.sign(current.fontMatrix[0]) * charSpacing;
 
           switch (textRenderingMode) {
             default: // other unsupported rendering modes
             case TextRenderingMode.FILL:
             case TextRenderingMode.FILL_ADD_TO_PATH:
-              ctx.fillText(char, width, 0);
+              ctx.fillText(char, x, 0);
               break;
             case TextRenderingMode.STROKE:
             case TextRenderingMode.STROKE_ADD_TO_PATH:
-              ctx.strokeText(char, width, 0);
+              ctx.strokeText(char, x, 0);
               break;
             case TextRenderingMode.FILL_STROKE:
             case TextRenderingMode.FILL_STROKE_ADD_TO_PATH:
-              ctx.fillText(char, width, 0);
-              ctx.strokeText(char, width, 0);
+              ctx.fillText(char, x, 0);
+              ctx.strokeText(char, x, 0);
               break;
             case TextRenderingMode.INVISIBLE:
               break;
           }
 
-          width += charWidth;
+          x += charWidth;
 
           text.str += glyph.unicode === ' ' ? '\u00A0' : glyph.unicode;
           text.length++;
           text.canvasWidth += charWidth;
         }
-        current.x += width * textHScale2;
+        current.x += x * textHScale2;
         ctx.restore();
       }
 
@@ -1939,7 +1966,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var fontSize = current.fontSize;
       var textHScale = current.textHScale;
       if (!font.coded)
-        textHScale *= (font.fontMatrix || IDENTITY_MATRIX)[0];
+        textHScale *= (current.fontMatrix || IDENTITY_MATRIX)[0];
       var arrLength = arr.length;
       var textLayer = this.textLayer;
       var text = {str: '', length: 0, canvasWidth: 0, geom: {}};
@@ -12249,6 +12276,10 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
             // a Stream in the main thread.
             if (translated.file)
               translated.file = translated.file.getBytes();
+            if (translated.properties.file) {
+              translated.properties.file =
+                  translated.properties.file.getBytes();
+            }
 
             handler.send('obj', [
                 loadedName,
@@ -12873,11 +12904,10 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
             properties: properties
           };
         }
-
       }
 
       // According to the spec if 'FontDescriptor' is declared, 'FirstChar',
-      // 'LastChar' and 'Widths' should exists too, but some PDF encoders seems
+      // 'LastChar' and 'Widths' should exist too, but some PDF encoders seem
       // to ignore this rule when a variant of a standart font is used.
       // TODO Fill the width array depending on which of the base font this is
       // a variant.
@@ -15597,7 +15627,13 @@ var Type1Parser = function type1Parser() {
     while (str[index++] != ']')
       count++;
 
-    var array = str.substr(start, count).split(' ');
+    str = str.substr(start, count);
+
+    str = str.trim();
+    // Remove adjacent spaces
+    str = str.replace(/\s+/g, ' ');
+
+    var array = str.split(' ');
     for (var i = 0, ii = array.length; i < ii; i++)
       array[i] = parseFloat(array[i] || 0);
     return array;
@@ -16598,7 +16634,7 @@ var Type2CFF = (function Type2CFFClosure() {
             dict['cidOperatorPresent'] = true;
             break;
           default:
-            TODO('interpret top dict key');
+            TODO('interpret top dict key: ' + key);
         }
       }
       return dict;
@@ -27731,11 +27767,27 @@ var WorkerMessageHandler = {
         // Pre compile the pdf page and fetch the fonts/images.
         IRQueue = page.getIRQueue(handler, dependency);
       } catch (e) {
+        var minimumStackMessage =
+            'worker.js: while trying to getPage() and getIRQueue()';
+
         // Turn the error into an obj that can be serialized
-        e = {
-          message: typeof e === 'object' ? e.message : e,
-          stack: typeof e === 'object' ? e.stack : null
-        };
+        if (typeof e === 'string') {
+          e = {
+            message: e,
+            stack: minimumStackMessage
+          };
+        } else if (typeof e === 'object') {
+          e = {
+            message: e.message || e.toString(),
+            stack: e.stack || minimumStackMessage
+          };
+        } else {
+          e = {
+            message: 'Unknown exception type: ' + (typeof e),
+            stack: minimumStackMessage
+          };
+        }
+
         handler.send('page_error', {
           pageNum: pageNum,
           error: e
