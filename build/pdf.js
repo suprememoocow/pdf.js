@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '4e967b2';
+  PDFJS.build = '1b0bf24';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -70,6 +70,7 @@ function getPdf(arg, callback) {
   xhr.send(null);
 }
 globalScope.PDFJS.getPdf = getPdf;
+globalScope.PDFJS.pdfBug = false;
 
 var Page = (function PageClosure() {
   function Page(xref, pageNumber, pageDict, ref) {
@@ -267,10 +268,16 @@ var Page = (function PageClosure() {
       var startIdx = 0;
       var length = this.IRQueue.fnArray.length;
       var IRQueue = this.IRQueue;
+      var stepper = null;
+      if (PDFJS.pdfBug && StepperManager.enabled) {
+        stepper = StepperManager.create(this.pageNumber);
+        stepper.init(IRQueue);
+        stepper.nextBreakPoint = stepper.getNextBreakPoint();
+      }
 
       var self = this;
       function next() {
-        startIdx = gfx.executeIRQueue(IRQueue, startIdx, next);
+        startIdx = gfx.executeIRQueue(IRQueue, startIdx, next, stepper);
         if (startIdx == length) {
           self.stats.render = Date.now();
           gfx.endDrawing();
@@ -1552,7 +1559,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     },
 
     executeIRQueue: function canvasGraphicsExecuteIRQueue(codeIR,
-                                  executionStartIdx, continueCallback) {
+                                  executionStartIdx, continueCallback,
+                                  stepper) {
       var argsArray = codeIR.argsArray;
       var fnArray = codeIR.fnArray;
       var i = executionStartIdx || 0;
@@ -1571,6 +1579,11 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var slowCommands = this.slowCommands;
 
       while (true) {
+        if (stepper && i === stepper.nextBreakPoint) {
+          stepper.breakIt(i, continueCallback);
+          return i;
+        }
+
         fnName = fnArray[i];
 
         if (fnName !== 'dependency') {
@@ -15461,6 +15474,9 @@ var Font = (function FontClosure() {
 
       var styleSheet = styleElement.sheet;
       styleSheet.insertRule(rule, styleSheet.cssRules.length);
+
+      if (PDFJS.pdfBug && FontInspector.enabled)
+        FontInspector.fontAdded(this, url);
 
       return rule;
     },
