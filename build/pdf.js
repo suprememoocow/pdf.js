@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '4147317';
+  PDFJS.build = '4e967b2';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -117,25 +117,35 @@ var Page = (function PageClosure() {
       return shadow(this, 'mediaBox', obj);
     },
     get view() {
-      var obj = this.inheritPageProp('CropBox');
+      var cropBox = this.inheritPageProp('CropBox');
       var view = {
         x: 0,
         y: 0,
         width: this.width,
         height: this.height
       };
+      if (!isArray(cropBox) || cropBox.length !== 4)
+        return shadow(this, 'view', view);
+
       var mediaBox = this.mediaBox;
       var offsetX = mediaBox[0], offsetY = mediaBox[1];
-      if (isArray(obj) && obj.length == 4) {
-        var tl = this.rotatePoint(obj[0] - offsetX, obj[1] - offsetY);
-        var br = this.rotatePoint(obj[2] - offsetX, obj[3] - offsetY);
-        view.x = Math.min(tl.x, br.x);
-        view.y = Math.min(tl.y, br.y);
-        view.width = Math.abs(tl.x - br.x);
-        view.height = Math.abs(tl.y - br.y);
-      }
 
-      return shadow(this, 'cropBox', view);
+      // From the spec, 6th ed., p.963:
+      // "The crop, bleed, trim, and art boxes should not ordinarily
+      // extend beyond the boundaries of the media box. If they do, they are
+      // effectively reduced to their intersection with the media box."
+      cropBox = Util.intersect(cropBox, mediaBox);
+      if (!cropBox)
+        return shadow(this, 'view', view);
+
+      var tl = this.rotatePoint(cropBox[0] - offsetX, cropBox[1] - offsetY);
+      var br = this.rotatePoint(cropBox[2] - offsetX, cropBox[3] - offsetY);
+      view.x = Math.min(tl.x, br.x);
+      view.y = Math.min(tl.y, br.y);
+      view.width = Math.abs(tl.x - br.x);
+      view.height = Math.abs(tl.y - br.y);
+
+      return shadow(this, 'view', view);
     },
     get annotations() {
       return shadow(this, 'annotations', this.inheritPageProp('Annots'));
@@ -964,6 +974,62 @@ var Util = (function UtilClosure() {
       m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
       m[6] * v[0] + m[7] * v[1] + m[8] * v[2]
     ];
+  }
+
+  // Normalize rectangle rect=[x1, y1, x2, y2] so that (x1,y1) < (x2,y2)
+  // For coordinate systems whose origin lies in the bottom-left, this
+  // means normalization to (BL,TR) ordering. For systems with origin in the
+  // top-left, this means (TL,BR) ordering.
+  Util.normalizeRect = function normalizeRect(rect) {
+    var r = rect.slice(0); // clone rect
+    if (rect[0] > rect[2]) {
+      r[0] = rect[2];
+      r[2] = rect[0];
+    }
+    if (rect[1] > rect[3]) {
+      r[1] = rect[3];
+      r[3] = rect[1];
+    }
+    return r;
+  }
+
+  // Returns a rectangle [x1, y1, x2, y2] corresponding to the
+  // intersection of rect1 and rect2. If no intersection, returns 'false'
+  // The rectangle coordinates of rect1, rect2 should be [x1, y1, x2, y2]
+  Util.intersect = function intersect(rect1, rect2) {
+    function compare(a, b) {
+      return a - b;
+    };
+
+    // Order points along the axes
+    var orderedX = [rect1[0], rect1[2], rect2[0], rect2[2]].sort(compare),
+        orderedY = [rect1[1], rect1[3], rect2[1], rect2[3]].sort(compare),
+        result = [];
+
+    rect1 = Util.normalizeRect(rect1);
+    rect2 = Util.normalizeRect(rect2);
+
+    // X: first and second points belong to different rectangles?
+    if ((orderedX[0] === rect1[0] && orderedX[1] === rect2[0]) ||
+        (orderedX[0] === rect2[0] && orderedX[1] === rect1[0])) {
+      // Intersection must be between second and third points
+      result[0] = orderedX[1];
+      result[2] = orderedX[2];
+    } else {
+      return false;
+    }
+
+    // Y: first and second points belong to different rectangles?
+    if ((orderedY[0] === rect1[1] && orderedY[1] === rect2[1]) ||
+        (orderedY[0] === rect2[1] && orderedY[1] === rect1[1])) {
+      // Intersection must be between second and third points
+      result[1] = orderedY[1];
+      result[3] = orderedY[2];
+    } else {
+      return false;
+    }
+
+    return result;
   }
 
   Util.sign = function sign(num) {
