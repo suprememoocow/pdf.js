@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '42a428a';
+  PDFJS.build = 'd09c0fb';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -14940,12 +14940,20 @@ var Font = (function FontClosure() {
         var locaData = loca.data;
         // removing the invalid glyphs
         var oldGlyfData = glyf.data;
-        var newGlyfData = new Uint8Array(oldGlyfData.length);
+        var oldGlyfDataLength = oldGlyfData.length;
+        var newGlyfData = new Uint8Array(oldGlyfDataLength);
         var startOffset = itemDecode(locaData, 0);
         var writeOffset = 0;
         itemEncode(locaData, 0, writeOffset);
         for (var i = 0, j = itemSize; i < numGlyphs; i++, j += itemSize) {
           var endOffset = itemDecode(locaData, j);
+          if (endOffset > oldGlyfDataLength) {
+            // glyph end offset points outside glyf data, rejecting the glyph
+            itemEncode(locaData, j, writeOffset);
+            startOffset = endOffset;
+            continue;
+          }
+
           var newLength = sanitizeGlyph(oldGlyfData, startOffset, endOffset,
                                         newGlyfData, writeOffset);
           writeOffset += newLength;
