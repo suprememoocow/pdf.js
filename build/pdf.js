@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '65811a7';
+  PDFJS.build = '6c24a75';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -15197,6 +15197,10 @@ var Font = (function FontClosure() {
             ids[i] = i;
         }
 
+        var unusedUnicode = kCmapGlyphOffset;
+        var glyphNames = properties.glyphNames || [];
+        var encoding = properties.baseEncoding;
+        var differences = properties.differences;
         if (toFontChar && toFontChar.length > 0) {
           // checking if cmap is just identity map
           var isIdentity = true;
@@ -15219,7 +15223,6 @@ var Font = (function FontClosure() {
               glyphs[i].unicode = unicode;
               usedUnicodes[unicode] = true;
             }
-            var unusedUnicode = kCmapGlyphOffset;
             for (var j = 0, jj = unassignedUnicodeItems.length; j < jj; j++) {
               var i = unassignedUnicodeItems[j];
               while (unusedUnicode in usedUnicodes)
@@ -15240,14 +15243,13 @@ var Font = (function FontClosure() {
           // copying all characters to private use area, all mapping all known
           // glyphs to the unicodes. The glyphs and ids arrays will grow.
           var usedUnicodes = [];
-          var glyphNames = properties.glyphNames || [];
           for (var i = 0, ii = glyphs.length; i < ii; i++) {
             var code = glyphs[i].unicode;
             var gid = ids[i];
             glyphs[i].unicode += kCmapGlyphOffset;
             toFontChar[code] = glyphs[i].unicode;
 
-            var glyphName = glyphNames[gid] || properties.baseEncoding[code];
+            var glyphName = glyphNames[gid] || encoding[code];
             if (glyphName in GlyphsUnicode) {
               var unicode = GlyphsUnicode[glyphName];
               if (unicode in usedUnicodes)
@@ -15263,6 +15265,36 @@ var Font = (function FontClosure() {
             }
           }
           this.useToFontChar = true;
+        } else if (!this.isSymbolicFont && (this.hasEncoding ||
+                    properties.glyphNames || differences.length > 0)) {
+          // Re-encode cmap encoding to unicode, based on the 'post' table data
+          // diffrence array or base encoding
+          var reverseMap = [];
+          for (var i = 0, ii = glyphs.length; i < ii; i++)
+            reverseMap[glyphs[i].unicode] = i;
+
+          for (var i = 0, ii = glyphs.length; i < ii; i++) {
+            var code = glyphs[i].unicode;
+            var changeCode = false;
+            var gid = ids[i];
+
+            var glyphName = glyphNames[gid];
+            if (!glyphName) {
+              glyphName = differences[code] || encoding[code];
+              changeCode = true;
+            }
+            if (glyphName in GlyphsUnicode) {
+              var unicode = GlyphsUnicode[glyphName];
+              if (!unicode || (unicode in reverseMap))
+                continue; // unknown glyph name or its place is taken
+
+              glyphs[i].unicode = unicode;
+              reverseMap[unicode] = i;
+              if (changeCode)
+                toFontChar[code] = unicode;
+            }
+            this.useToFontChar = true;
+          }
         }
 
         // Moving all symbolic font glyphs into 0xF000 - 0xF0FF range.
@@ -18765,27 +18797,7 @@ var GlyphsUnicode = {
   dalet: 0x05D3,
   daletdagesh: 0xFB33,
   daletdageshhebrew: 0xFB33,
-  dalethatafpatah: 0x05D305B2,
-  dalethatafpatahhebrew: 0x05D305B2,
-  dalethatafsegol: 0x05D305B1,
-  dalethatafsegolhebrew: 0x05D305B1,
   dalethebrew: 0x05D3,
-  dalethiriq: 0x05D305B4,
-  dalethiriqhebrew: 0x05D305B4,
-  daletholam: 0x05D305B9,
-  daletholamhebrew: 0x05D305B9,
-  daletpatah: 0x05D305B7,
-  daletpatahhebrew: 0x05D305B7,
-  daletqamats: 0x05D305B8,
-  daletqamatshebrew: 0x05D305B8,
-  daletqubuts: 0x05D305BB,
-  daletqubutshebrew: 0x05D305BB,
-  daletsegol: 0x05D305B6,
-  daletsegolhebrew: 0x05D305B6,
-  daletsheva: 0x05D305B0,
-  daletshevahebrew: 0x05D305B0,
-  dalettsere: 0x05D305B5,
-  dalettserehebrew: 0x05D305B5,
   dalfinalarabic: 0xFEAA,
   dammaarabic: 0x064F,
   dammalowarabic: 0x064F,
@@ -19102,10 +19114,6 @@ var GlyphsUnicode = {
   finalkafdagesh: 0xFB3A,
   finalkafdageshhebrew: 0xFB3A,
   finalkafhebrew: 0x05DA,
-  finalkafqamats: 0x05DA05B8,
-  finalkafqamatshebrew: 0x05DA05B8,
-  finalkafsheva: 0x05DA05B0,
-  finalkafshevahebrew: 0x05DA05B0,
   finalmem: 0x05DD,
   finalmemhebrew: 0x05DD,
   finalnun: 0x05DF,
@@ -19294,14 +19302,7 @@ var GlyphsUnicode = {
   hakatakanahalfwidth: 0xFF8A,
   halantgurmukhi: 0x0A4D,
   hamzaarabic: 0x0621,
-  hamzadammaarabic: 0x0621064F,
-  hamzadammatanarabic: 0x0621064C,
-  hamzafathaarabic: 0x0621064E,
-  hamzafathatanarabic: 0x0621064B,
   hamzalowarabic: 0x0621,
-  hamzalowkasraarabic: 0x06210650,
-  hamzalowkasratanarabic: 0x0621064D,
-  hamzasukunarabic: 0x06210652,
   hangulfiller: 0x3164,
   hardsigncyrillic: 0x044A,
   harpoonleftbarbup: 0x21BC,
@@ -19733,10 +19734,6 @@ var GlyphsUnicode = {
   lameddagesh: 0xFB3C,
   lameddageshhebrew: 0xFB3C,
   lamedhebrew: 0x05DC,
-  lamedholam: 0x05DC05B9,
-  lamedholamdagesh: '05DC 05B9 05BC',
-  lamedholamdageshhebrew: '05DC 05B9 05BC',
-  lamedholamhebrew: 0x05DC05B9,
   lamfinalarabic: 0xFEDE,
   lamhahinitialarabic: 0xFCCA,
   laminitialarabic: 0xFEDF,
@@ -19746,8 +19743,6 @@ var GlyphsUnicode = {
   lammedialarabic: 0xFEE0,
   lammeemhahinitialarabic: 0xFD88,
   lammeeminitialarabic: 0xFCCC,
-  lammeemjeeminitialarabic: 'FEDF FEE4 FEA0',
-  lammeemkhahinitialarabic: 'FEDF FEE4 FEA8',
   largecircle: 0x25EF,
   lbar: 0x019A,
   lbelt: 0x026C,
@@ -20044,7 +20039,6 @@ var GlyphsUnicode = {
   noonfinalarabic: 0xFEE6,
   noonghunnaarabic: 0x06BA,
   noonghunnafinalarabic: 0xFB9F,
-  noonhehinitialarabic: 0xFEE7FEEC,
   nooninitialarabic: 0xFEE7,
   noonjeeminitialarabic: 0xFCD2,
   noonjeemisolatedarabic: 0xFC4B,
@@ -20416,27 +20410,7 @@ var GlyphsUnicode = {
   qof: 0x05E7,
   qofdagesh: 0xFB47,
   qofdageshhebrew: 0xFB47,
-  qofhatafpatah: 0x05E705B2,
-  qofhatafpatahhebrew: 0x05E705B2,
-  qofhatafsegol: 0x05E705B1,
-  qofhatafsegolhebrew: 0x05E705B1,
   qofhebrew: 0x05E7,
-  qofhiriq: 0x05E705B4,
-  qofhiriqhebrew: 0x05E705B4,
-  qofholam: 0x05E705B9,
-  qofholamhebrew: 0x05E705B9,
-  qofpatah: 0x05E705B7,
-  qofpatahhebrew: 0x05E705B7,
-  qofqamats: 0x05E705B8,
-  qofqamatshebrew: 0x05E705B8,
-  qofqubuts: 0x05E705BB,
-  qofqubutshebrew: 0x05E705BB,
-  qofsegol: 0x05E705B6,
-  qofsegolhebrew: 0x05E705B6,
-  qofsheva: 0x05E705B0,
-  qofshevahebrew: 0x05E705B0,
-  qoftsere: 0x05E705B5,
-  qoftserehebrew: 0x05E705B5,
   qparen: 0x24AC,
   quarternote: 0x2669,
   qubuts: 0x05BB,
@@ -20510,32 +20484,11 @@ var GlyphsUnicode = {
   reharmenian: 0x0580,
   rehfinalarabic: 0xFEAE,
   rehiragana: 0x308C,
-  rehyehaleflamarabic: '0631 FEF3 FE8E 0644',
   rekatakana: 0x30EC,
   rekatakanahalfwidth: 0xFF9A,
   resh: 0x05E8,
   reshdageshhebrew: 0xFB48,
-  reshhatafpatah: 0x05E805B2,
-  reshhatafpatahhebrew: 0x05E805B2,
-  reshhatafsegol: 0x05E805B1,
-  reshhatafsegolhebrew: 0x05E805B1,
   reshhebrew: 0x05E8,
-  reshhiriq: 0x05E805B4,
-  reshhiriqhebrew: 0x05E805B4,
-  reshholam: 0x05E805B9,
-  reshholamhebrew: 0x05E805B9,
-  reshpatah: 0x05E805B7,
-  reshpatahhebrew: 0x05E805B7,
-  reshqamats: 0x05E805B8,
-  reshqamatshebrew: 0x05E805B8,
-  reshqubuts: 0x05E805BB,
-  reshqubutshebrew: 0x05E805BB,
-  reshsegol: 0x05E805B6,
-  reshsegolhebrew: 0x05E805B6,
-  reshsheva: 0x05E805B0,
-  reshshevahebrew: 0x05E805B0,
-  reshtsere: 0x05E805B5,
-  reshtserehebrew: 0x05E805B5,
   reversedtilde: 0x223D,
   reviahebrew: 0x0597,
   reviamugrashhebrew: 0x0597,
@@ -20734,7 +20687,6 @@ var GlyphsUnicode = {
   shaddadammaarabic: 0xFC61,
   shaddadammatanarabic: 0xFC5E,
   shaddafathaarabic: 0xFC60,
-  shaddafathatanarabic: 0x0651064B,
   shaddakasraarabic: 0xFC62,
   shaddakasratanarabic: 0xFC5F,
   shade: 0x2592,
@@ -20931,7 +20883,6 @@ var GlyphsUnicode = {
   tchehfinalarabic: 0xFB7B,
   tchehinitialarabic: 0xFB7C,
   tchehmedialarabic: 0xFB7D,
-  tchehmeeminitialarabic: 0xFB7CFEE4,
   tcircle: 0x24E3,
   tcircumflexbelow: 0x1E71,
   tcommaaccent: 0x0163,
