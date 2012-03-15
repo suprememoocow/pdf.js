@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f63db6d';
+  PDFJS.build = '6051720';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -2760,6 +2760,8 @@ var Catalog = (function CatalogClosure() {
           while (queue.length > 0) {
             var i = queue.shift();
             var outlineDict = xref.fetch(i.obj);
+            if (outlineDict === null)
+              continue;
             if (!outlineDict.has('Title'))
               error('Invalid outline item');
             var dest = outlineDict.get('A');
@@ -3195,6 +3197,8 @@ var XRef = (function XRefClosure() {
     },
     getEntry: function xRefGetEntry(i) {
       var e = this.entries[i];
+      if (e === null)
+        return null;
       return e.free ? null : e; // returns null is the entry is free
     },
     fetchIfRef: function xRefFetchIfRef(obj) {
