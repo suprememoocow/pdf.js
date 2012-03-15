@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f79ed9c';
+  PDFJS.build = '6af1f4b';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -1298,7 +1298,7 @@ var Promise = (function PromiseClosure() {
       if (this.isResolved) {
         var data = this.data;
         callback.call(null, data);
-      } else if (this.isRejected && errorback) {
+      } else if (this.isRejected && errback) {
         var error = this.error;
         errback.call(null, error);
       } else {
