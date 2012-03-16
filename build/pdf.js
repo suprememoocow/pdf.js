@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'b31ef0f';
+  PDFJS.build = '2c5de00';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -13847,6 +13847,12 @@ var FontLoader = {
       //
       // The postMessage() hackery was added to work around chrome bug
       // 82402.
+
+      // Validate the names parameter -- the values can used to construct HTML.
+      if (!/^\w+$/.test(names.join(''))) {
+        error('Invalid font name(s): ' + names.join());
+        return; // Keep the return in case if error() did not throw.
+      }
 
       var div = document.createElement('div');
       div.setAttribute('style',
