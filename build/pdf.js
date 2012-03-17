@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '82868ae';
+  PDFJS.build = '29fb446';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -1556,7 +1556,7 @@ function addContextCurrentTransform(ctx) {
 var CanvasGraphics = (function CanvasGraphicsClosure() {
   // Defines the time the executeIRQueue is going to be executing
   // before it stops and shedules a continue of execution.
-  var kExecutionTime = 50;
+  var kExecutionTime = 15;
 
   function CanvasGraphics(canvasCtx, objs, textLayer) {
     this.ctx = canvasCtx;
