@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '29fb446';
+  PDFJS.build = 'dc9cb3d';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -31244,7 +31244,7 @@ var bidi = PDFJS.bidi = (function bidiClosure() {
     }
   }
 
-  return (function bidi(text, startLevel) {
+  function bidi(text, startLevel) {
     var str = text.str;
     var strLength = str.length;
     if (strLength == 0)
@@ -31549,7 +31549,10 @@ var bidi = PDFJS.bidi = (function bidiClosure() {
         result += ch;
     }
     return result;
-  });
+  }
+
+  return bidi;
 })();
+
 
 }).call((typeof window === 'undefined') ? this : window);
