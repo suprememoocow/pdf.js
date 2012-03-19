@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'dc9cb3d';
+  PDFJS.build = '0c258ae';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -183,10 +183,10 @@ var Page = (function PageClosure() {
       return shadow(this, 'rotate', rotate);
     },
 
-    startRenderingFromIRQueue: function pageStartRenderingFromIRQueue(
-                                                IRQueue, fonts) {
+    startRenderingFromOperatorList: function pageStartRenderingFromOperatorList(
+                                                operatorList, fonts) {
       var self = this;
-      this.IRQueue = IRQueue;
+      this.operatorList = operatorList;
 
       var displayContinuation = function pageDisplayContinuation() {
         // Always defer call to display() to work around bug in
@@ -197,15 +197,16 @@ var Page = (function PageClosure() {
       };
 
       this.ensureFonts(fonts,
-                       function pageStartRenderingFromIRQueueEnsureFonts() {
-        displayContinuation();
-      });
+        function pageStartRenderingFromOperatorListEnsureFonts() {
+          displayContinuation();
+        }
+      );
     },
 
-    getIRQueue: function pageGetIRQueue(handler, dependency) {
-      if (this.IRQueue) {
+    getOperatorList: function pageGetOperatorList(handler, dependency) {
+      if (this.operatorList) {
         // content was compiled
-        return this.IRQueue;
+        return this.operatorList;
       }
 
       this.stats.time('Build IR Queue');
@@ -226,11 +227,10 @@ var Page = (function PageClosure() {
 
       var pe = this.pe = new PartialEvaluator(
                                 xref, handler, 'p' + this.pageNumber + '_');
-      var IRQueue = {};
-      this.IRQueue = pe.getIRQueue(content, resources, IRQueue, dependency);
 
+      this.operatorList = pe.getOperatorList(content, resources, dependency);
       this.stats.timeEnd('Build IR Queue');
-      return this.IRQueue;
+      return this.operatorList;
     },
 
     ensureFonts: function pageEnsureFonts(fonts, callback) {
@@ -241,14 +241,13 @@ var Page = (function PageClosure() {
       }
 
       // Load all the fonts
-      var fontObjs = FontLoader.bind(
+      FontLoader.bind(
         fonts,
         function pageEnsureFontsFontObjs(fontObjs) {
           this.stats.timeEnd('Font Loading');
 
           callback.call(this);
-        }.bind(this),
-        this.objs
+        }.bind(this)
       );
     },
 
@@ -268,18 +267,19 @@ var Page = (function PageClosure() {
             rotate: this.rotate });
 
       var startIdx = 0;
-      var length = this.IRQueue.fnArray.length;
-      var IRQueue = this.IRQueue;
+      var length = this.operatorList.fnArray.length;
+      var operatorList = this.operatorList;
       var stepper = null;
       if (PDFJS.pdfBug && StepperManager.enabled) {
         stepper = StepperManager.create(this.pageNumber);
-        stepper.init(IRQueue);
+        stepper.init(operatorList);
         stepper.nextBreakPoint = stepper.getNextBreakPoint();
       }
 
       var self = this;
       function next() {
-        startIdx = gfx.executeIRQueue(IRQueue, startIdx, next, stepper);
+        startIdx =
+          gfx.executeOperatorList(operatorList, startIdx, next, stepper);
         if (startIdx == length) {
           gfx.endDrawing();
           stats.timeEnd('Rendering');
@@ -449,13 +449,14 @@ var Page = (function PageClosure() {
     startRendering: function pageStartRendering(ctx, callback, textLayer)  {
       var stats = this.stats;
       stats.time('Overall');
-      // If there is no displayReadyPromise yet, then the IRQueue was never
+      // If there is no displayReadyPromise yet, then the operatorList was never
       // requested before. Make the request and create the promise.
       if (!this.displayReadyPromise) {
         this.pdf.startRendering(this);
         this.displayReadyPromise = new Promise();
       }
-      // Once the IRQueue and fonts are loaded, perform the actual rendering.
+
+      // Once the operatorList and fonts are loaded, do the actual rendering.
       this.displayReadyPromise.then(
         function pageDisplayReadyPromise() {
           var gfx = new CanvasGraphics(ctx, this.objs, textLayer);
@@ -487,9 +488,6 @@ var Page = (function PageClosure() {
  * Right now there exists one PDFDocModel on the main thread + one object
  * for each worker. If there is no worker support enabled, there are two
  * `PDFDocModel` objects on the main thread created.
- * TODO: Refactor the internal object structure, such that there is no
- * need for the `PDFDocModel` anymore and there is only one object on the
- * main thread and not one entire copy on each worker instance.
  */
 var PDFDocModel = (function PDFDocModelClosure() {
   function PDFDocModel(arg, callback) {
@@ -658,9 +656,9 @@ var PDFDoc = (function PDFDocClosure() {
 
     this.data = data;
     this.stream = stream;
-    this.pdf = new PDFDocModel(stream);
-    this.fingerprint = this.pdf.getFingerprint();
-    this.catalog = this.pdf.catalog;
+    this.pdfModel = new PDFDocModel(stream);
+    this.fingerprint = this.pdfModel.getFingerprint();
+    this.catalog = this.pdfModel.catalog;
     this.objs = new PDFObjects();
 
     this.pageCache = [];
@@ -746,8 +744,9 @@ var PDFDoc = (function PDFDocClosure() {
         var pageNum = data.pageNum;
         var page = this.pageCache[pageNum];
         var depFonts = data.depFonts;
+
         page.stats.timeEnd('Page Request');
-        page.startRenderingFromIRQueue(data.IRQueue, depFonts);
+        page.startRenderingFromOperatorList(data.operatorList, depFonts);
       }, this);
 
       messageHandler.on('obj', function pdfDocObj(data) {
@@ -774,30 +773,15 @@ var PDFDoc = (function PDFDocClosure() {
               file = new Stream(file, 0, file.length, fontFileDict);
             }
 
-            // For now, resolve the font object here direclty. The real font
-            // object is then created in FontLoader.bind().
-            this.objs.resolve(id, {
-              name: name,
-              file: file,
-              properties: properties
-            });
+            // At this point, only the font object is created but the font is
+            // not yet attached to the DOM. This is done in `FontLoader.bind`.
+            var font = new Font(name, file, properties);
+            this.objs.resolve(id, font);
             break;
           default:
             error('Got unkown object type ' + type);
         }
       }, this);
-
-      messageHandler.on('font_ready', function pdfDocFontReady(data) {
-        var id = data[0];
-        var font = new FontShape(data[1]);
-
-        // If there is no string, then there is nothing to attach to the DOM.
-        if (!font.str) {
-          this.objs.resolve(id, font);
-        } else {
-          this.objs.setData(id, font);
-        }
-      }.bind(this));
 
       messageHandler.on('page_error', function pdfDocError(data) {
         var page = this.pageCache[data.pageNum];
@@ -820,7 +804,7 @@ var PDFDoc = (function PDFDocClosure() {
           var size = width * height;
           var rgbaLength = size * 4;
           var buf = new Uint8Array(size * components);
-          var tmpCanvas = new ScratchCanvas(width, height);
+          var tmpCanvas = createScratchCanvas(width, height);
           var tmpCtx = tmpCanvas.getContext('2d');
           tmpCtx.drawImage(img, 0, 0);
           var data = tmpCtx.getImageData(0, 0, width, height).data;
@@ -849,7 +833,7 @@ var PDFDoc = (function PDFDocClosure() {
     },
 
     get numPages() {
-      return this.pdf.numPages;
+      return this.pdfModel.numPages;
     },
 
     startRendering: function pdfDocStartRendering(page) {
@@ -864,7 +848,7 @@ var PDFDoc = (function PDFDocClosure() {
       if (this.pageCache[n])
         return this.pageCache[n];
 
-      var page = this.pdf.getPage(n);
+      var page = this.pdfModel.getPage(n);
       // Add a reference to the objects such that Page can forward the reference
       // to the CanvasGraphics and so on.
       page.objs = this.objs;
@@ -1436,7 +1420,7 @@ var CanvasExtraState = (function CanvasExtraStateClosure() {
   return CanvasExtraState;
 })();
 
-function ScratchCanvas(width, height) {
+function createScratchCanvas(width, height) {
   var canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -1554,7 +1538,7 @@ function addContextCurrentTransform(ctx) {
 }
 
 var CanvasGraphics = (function CanvasGraphicsClosure() {
-  // Defines the time the executeIRQueue is going to be executing
+  // Defines the time the executeOperatorList is going to be executing
   // before it stops and shedules a continue of execution.
   var kExecutionTime = 15;
 
@@ -1565,7 +1549,6 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
     this.pendingClip = null;
     this.res = null;
     this.xobjs = null;
-    this.ScratchCanvas = ScratchCanvas;
     this.objs = objs;
     this.textLayer = textLayer;
     if (canvasCtx) {
@@ -1595,7 +1578,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       'setStrokeColor': true,
       'setStrokeColorN': true,
       'setFillColor': true,
-      'setFillColorN_IR': true,
+      'setFillColorN': true,
       'setStrokeGray': true,
       'setFillGray': true,
       'setStrokeRGBColor': true,
@@ -1634,15 +1617,16 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
         this.textLayer.beginLayout();
     },
 
-    executeIRQueue: function canvasGraphicsExecuteIRQueue(codeIR,
-                                  executionStartIdx, continueCallback,
-                                  stepper) {
-      var argsArray = codeIR.argsArray;
-      var fnArray = codeIR.fnArray;
+    executeOperatorList: function canvasGraphicsExecuteOperatorList(
+                                    operatorList,
+                                    executionStartIdx, continueCallback,
+                                    stepper) {
+      var argsArray = operatorList.argsArray;
+      var fnArray = operatorList.fnArray;
       var i = executionStartIdx || 0;
       var argsArrayLen = argsArray.length;
 
-      // Sometimes the IRQueue to execute is empty.
+      // Sometimes the OperatorList to execute is empty.
       if (argsArrayLen == i) {
         return i;
       }
@@ -1680,7 +1664,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
 
         i++;
 
-        // If the entire IRQueue was executed, stop as were done.
+        // If the entire operatorList was executed, stop as were done.
         if (i == argsArrayLen) {
           return i;
         }
@@ -1693,8 +1677,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
           return i;
         }
 
-        // If the IRQueue isn't executed completly yet OR the execution time
-        // was short enough, do another execution round.
+        // If the operatorList isn't executed completely yet OR the execution
+        // time was short enough, do another execution round.
       }
     },
 
@@ -1922,7 +1906,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.current.leading = -leading;
     },
     setFont: function canvasGraphicsSetFont(fontRefName, size) {
-      var fontObj = this.objs.get(fontRefName).fontObj;
+      var fontObj = this.objs.get(fontRefName);
       var current = this.current;
 
       if (!fontObj)
@@ -2073,7 +2057,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
           this.save();
           ctx.scale(fontSize, fontSize);
           ctx.transform.apply(ctx, fontMatrix);
-          this.executeIRQueue(glyph.codeIRQueue);
+          this.executeOperatorList(glyph.operatorList);
           this.restore();
 
           var transformed = Util.applyTransform([glyph.width, 0], fontMatrix);
@@ -2274,7 +2258,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.ctx.strokeStyle = color;
       this.current.strokeColor = color;
     },
-    getColorN_IR_Pattern: function canvasGraphicsGetColorN_IR_Pattern(IR, cs) {
+    getColorN_Pattern: function canvasGraphicsGetColorN_Pattern(IR, cs) {
       if (IR[0] == 'TilingPattern') {
         var args = IR[1];
         var base = cs.base;
@@ -2296,11 +2280,11 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       }
       return pattern;
     },
-    setStrokeColorN_IR: function canvasGraphicsSetStrokeColorN(/*...*/) {
+    setStrokeColorN: function canvasGraphicsSetStrokeColorN(/*...*/) {
       var cs = this.current.strokeColorSpace;
 
       if (cs.name == 'Pattern') {
-        this.current.strokeColor = this.getColorN_IR_Pattern(arguments, cs);
+        this.current.strokeColor = this.getColorN_Pattern(arguments, cs);
       } else {
         this.setStrokeColor.apply(this, arguments);
       }
@@ -2312,11 +2296,11 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.ctx.fillStyle = color;
       this.current.fillColor = color;
     },
-    setFillColorN_IR: function canvasGraphicsSetFillColorN(/*...*/) {
+    setFillColorN: function canvasGraphicsSetFillColorN(/*...*/) {
       var cs = this.current.fillColorSpace;
 
       if (cs.name == 'Pattern') {
-        this.current.fillColor = this.getColorN_IR_Pattern(arguments, cs);
+        this.current.fillColor = this.getColorN_Pattern(arguments, cs);
       } else {
         this.setFillColor.apply(this, arguments);
       }
@@ -2482,7 +2466,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       // scale the image to the unit square
       ctx.scale(1 / w, -1 / h);
 
-      var tmpCanvas = new this.ScratchCanvas(w, h);
+      var tmpCanvas = createScratchCanvas(w, h);
       var tmpCtx = tmpCanvas.getContext('2d');
 
       var fillColor = this.current.fillColor;
@@ -2513,7 +2497,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       // scale the image to the unit square
       ctx.scale(1 / w, -1 / h);
 
-      var tmpCanvas = new this.ScratchCanvas(w, h);
+      var tmpCanvas = createScratchCanvas(w, h);
       var tmpCtx = tmpCanvas.getContext('2d');
       this.putBinaryImageData(tmpCtx, imgData, w, h);
 
@@ -12559,8 +12543,8 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
   };
 
   PartialEvaluator.prototype = {
-    getIRQueue: function partialEvaluatorGetIRQueue(stream, resources,
-                                    queue, dependency) {
+    getOperatorList: function partialEvaluatorGetOperatorList(stream, resources,
+                                                      dependency, queue) {
 
       var self = this;
       var xref = this.xref;
@@ -12583,8 +12567,6 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
         var fontRes = resources.get('Font');
 
-        // TODO: TOASK: Is it possible to get here? If so, what does
-        // args[0].name should be like???
         assert(fontRes, 'fontRes not available');
 
         fontRes = xref.fetchIfRef(fontRes);
@@ -12624,7 +12606,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
         // Ensure the font is ready before the font is set
         // and later on used for drawing.
-        // TODO: This should get insert to the IRQueue only once per
+        // OPTIMIZE: This should get insert to the operatorList only once per
         // page.
         insertDependency([loadedName]);
         return loadedName;
@@ -12686,6 +12668,9 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           }, handler, xref, resources, image, inline);
       }
 
+      if (!queue)
+        queue = {};
+
       if (!queue.argsArray) {
         queue.argsArray = [];
       }
@@ -12727,9 +12712,6 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           // TODO figure out how to type-check vararg functions
 
           if ((cmd == 'SCN' || cmd == 'scn') && !args[args.length - 1].code) {
-            // Use the IR version for setStroke/FillColorN.
-            fn += '_IR';
-
             // compile tiling patterns
             var patternName = args[args.length - 1];
             // SCN/scn applies patterns along with normal colors
@@ -12742,15 +12724,14 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                 if (typeNum == TILING_PATTERN) {
                   // Create an IR of the pattern code.
                   var depIdx = dependencyArray.length;
-                  var queueObj = {};
-                  var codeIR = this.getIRQueue(pattern, dict.get('Resources') ||
-                      resources, queueObj, dependencyArray);
+                  var operatorList = this.getOperatorList(pattern,
+                      dict.get('Resources') || resources, dependencyArray);
 
                   // Add the dependencies that are required to execute the
-                  // codeIR.
+                  // operatorList.
                   insertDependency(dependencyArray.slice(depIdx));
 
-                  args = TilingPattern.getIR(codeIR, dict, args);
+                  args = TilingPattern.getIR(operatorList, dict, args);
                 }
                 else if (typeNum == SHADING_PATTERN) {
                   var shading = xref.fetchIfRef(dict.get('Shading'));
@@ -12784,14 +12765,18 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                 fnArray.push('paintFormXObjectBegin');
                 argsArray.push([matrix, bbox]);
 
-                // This adds the IRQueue of the xObj to the current queue.
+                // This adds the operatorList of the xObj to the current queue.
                 var depIdx = dependencyArray.length;
 
-                this.getIRQueue(xobj, xobj.dict.get('Resources') || resources,
-                    queue, dependencyArray);
+                // Pass in the current `queue` object. That means the `fnArray`
+                // and the `argsArray` in this scope is reused and new commands
+                // are added to them.
+                this.getOperatorList(xobj,
+                    xobj.dict.get('Resources') || resources,
+                    dependencyArray, queue);
 
                // Add the dependencies that are required to execute the
-               // codeIR.
+               // operatorList.
                insertDependency(dependencyArray.slice(depIdx));
 
                 fn = 'paintFormXObjectEnd';
@@ -12901,10 +12886,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         }
       }
 
-      return {
-        fnArray: fnArray,
-        argsArray: argsArray
-      };
+      return queue;
     },
 
     extractDataStructures: function
@@ -13302,12 +13284,11 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         var charProcs = xref.fetchIfRef(dict.get('CharProcs'));
         var fontResources = xref.fetchIfRef(dict.get('Resources')) || resources;
         properties.resources = fontResources;
-        properties.charProcIRQueues = {};
+        properties.charProcOperatorList = {};
         for (var key in charProcs.map) {
           var glyphStream = xref.fetchIfRef(charProcs.map[key]);
-          var queueObj = {};
-          properties.charProcIRQueues[key] =
-            this.getIRQueue(glyphStream, fontResources, queueObj, dependency);
+          properties.charProcOperatorList[key] =
+            this.getOperatorList(glyphStream, fontResources, dependency);
         }
       }
 
@@ -13757,8 +13738,8 @@ var FontLoader = {
 
   bind: function fontLoaderBind(fonts, callback) {
     function checkFontsLoaded() {
-      for (var i = 0, ii = objs.length; i < ii; i++) {
-        var fontObj = objs[i];
+      for (var i = 0, ii = fonts.length; i < ii; i++) {
+        var fontObj = fonts[i];
         if (fontObj.loading) {
           return false;
         }
@@ -13771,52 +13752,45 @@ var FontLoader = {
       return true;
     }
 
-    var rules = [], names = [], objs = [];
+    var rules = [], names = [], fontsToLoad = [];
+    var fontCreateTimer = 0;
 
     for (var i = 0, ii = fonts.length; i < ii; i++) {
       var font = fonts[i];
 
-      // If there is already a fontObj on the font, then it was loaded/attached
-      // to the page already and we don't have to do anything for this font
-      // here future.
-      if (font.fontObj) {
+      // Add the font to the DOM only once or skip if the font
+      // is already loaded.
+      if (font.attached || font.loading == false) {
         continue;
       }
+      font.attached = true;
 
-      var obj = new Font(font.name, font.file, font.properties);
-
-      // Store the fontObj on the font such that `setFont` in CanvasGraphics
-      // can reuse it later again.
-      font.fontObj = obj;
-
-      objs.push(obj);
+      fontsToLoad.push(font);
 
       var str = '';
-      var data = obj.data;
+      var data = font.data;
       if (data) {
         var length = data.length;
         for (var j = 0; j < length; j++)
           str += String.fromCharCode(data[j]);
 
-        var rule = isWorker ? obj.bindWorker(str) : obj.bindDOM(str);
+        var rule = font.bindDOM(str);
         if (rule) {
           rules.push(rule);
-          names.push(obj.loadedName);
+          names.push(font.loadedName);
         }
       }
     }
 
     this.listeningForFontLoad = false;
     if (!isWorker && rules.length) {
-      FontLoader.prepareFontLoadEvent(rules, names, objs);
+      FontLoader.prepareFontLoadEvent(rules, names, fontsToLoad);
     }
 
     if (!checkFontsLoaded()) {
       document.documentElement.addEventListener(
         'pdfjsFontLoad', checkFontsLoaded, false);
     }
-
-    return objs;
   },
   // Set things up so that at least one pdfjsFontLoad event is
   // dispatched when all the @font-face |rules| for |names| have been
@@ -13824,7 +13798,7 @@ var FontLoader = {
   // has already started in this (outer) document, so that they should
   // be ordered before the load in the subdocument.
   prepareFontLoadEvent: function fontLoaderPrepareFontLoadEvent(rules, names,
-                                                                objs) {
+                                                                fonts) {
       /** Hack begin */
       // There's no event when a font has finished downloading so the
       // following code is a dirty hack to 'guess' when a font is
@@ -13871,8 +13845,8 @@ var FontLoader = {
           'message',
           function fontLoaderMessage(e) {
             var fontNames = JSON.parse(e.data);
-            for (var i = 0, ii = objs.length; i < ii; ++i) {
-              var font = objs[i];
+            for (var i = 0, ii = fonts.length; i < ii; ++i) {
+              var font = fonts[i];
               font.loading = false;
             }
             var evt = document.createEvent('Events');
@@ -14118,7 +14092,7 @@ var Font = (function FontClosure() {
   function Font(name, file, properties) {
     this.name = name;
     this.coded = properties.coded;
-    this.charProcIRQueues = properties.charProcIRQueues;
+    this.charProcOperatorList = properties.charProcOperatorList;
     this.resources = properties.resources;
     this.sizes = [];
 
@@ -14216,7 +14190,7 @@ var Font = (function FontClosure() {
     this.widthMultiplier = !properties.fontMatrix ? 1.0 :
       1.0 / properties.fontMatrix[0];
     this.encoding = properties.baseEncoding;
-    this.loadedName = getUniqueName();
+    this.loadedName = properties.loadedName;
     this.loading = true;
   };
 
@@ -15626,17 +15600,6 @@ var Font = (function FontClosure() {
       }
     },
 
-    bindWorker: function font_bindWorker(data) {
-      postMessage({
-        action: 'font',
-        data: {
-          raw: data,
-          fontName: this.loadedName,
-          mimetype: this.mimetype
-        }
-      });
-    },
-
     bindDOM: function font_bindDom(data) {
       var fontName = this.loadedName;
 
@@ -15690,7 +15653,7 @@ var Font = (function FontClosure() {
     },
 
     charToGlyph: function fonts_charToGlyph(charcode) {
-      var fontCharCode, width, codeIRQueue;
+      var fontCharCode, width, operatorList;
 
       var width = this.widths[charcode];
 
@@ -15725,7 +15688,7 @@ var Font = (function FontClosure() {
           break;
         case 'Type3':
           var glyphName = this.differences[charcode] || this.encoding[charcode];
-          codeIRQueue = this.charProcIRQueues[glyphName];
+          operatorList = this.charProcOperatorList[glyphName];
           fontCharCode = charcode;
           break;
         case 'TrueType':
@@ -15768,7 +15731,7 @@ var Font = (function FontClosure() {
         fontChar: String.fromCharCode(fontCharCode),
         unicode: unicodeChars,
         width: width,
-        codeIRQueue: codeIRQueue
+        operatorList: operatorList
       };
     },
 
@@ -25694,7 +25657,7 @@ var TilingPattern = (function TilingPatternClosure() {
   var MAX_PATTERN_SIZE = 512;
 
   function TilingPattern(IR, color, ctx, objs) {
-    var IRQueue = IR[2];
+    var operatorList = IR[2];
     this.matrix = IR[3];
     var bbox = IR[4];
     var xstep = IR[5];
@@ -25726,7 +25689,7 @@ var TilingPattern = (function TilingPatternClosure() {
       width = height = MAX_PATTERN_SIZE;
     }
 
-    var tmpCanvas = new ScratchCanvas(width, height);
+    var tmpCanvas = createScratchCanvas(width, height);
 
     // set the new canvas element context as the graphics context
     var tmpCtx = tmpCanvas.getContext('2d');
@@ -25763,12 +25726,12 @@ var TilingPattern = (function TilingPatternClosure() {
       graphics.endPath();
     }
 
-    graphics.executeIRQueue(IRQueue);
+    graphics.executeOperatorList(operatorList);
 
     this.canvas = tmpCanvas;
   }
 
-  TilingPattern.getIR = function tiling_getIR(codeIR, dict, args) {
+  TilingPattern.getIR = function tiling_getIR(operatorList, dict, args) {
     var matrix = dict.get('Matrix');
     var bbox = dict.get('BBox');
     var xstep = dict.get('XStep');
@@ -25776,7 +25739,7 @@ var TilingPattern = (function TilingPatternClosure() {
     var paintType = dict.get('PaintType');
 
     return [
-      'TilingPattern', args, codeIR, matrix, bbox, xstep, ystep, paintType
+      'TilingPattern', args, operatorList, matrix, bbox, xstep, ystep, paintType
     ];
   };
 
@@ -28177,7 +28140,7 @@ MessageHandler.prototype = {
 
 var WorkerMessageHandler = {
   setup: function wphSetup(handler) {
-    var pdfDoc = null;
+    var pdfModel = null;
 
     handler.on('test', function wphSetupTest(data) {
       handler.send('test', data instanceof Uint8Array);
@@ -28186,7 +28149,7 @@ var WorkerMessageHandler = {
     handler.on('doc', function wphSetupDoc(data) {
       // Create only the model of the PDFDoc, which is enough for
       // processing the content of the pdf.
-      pdfDoc = new PDFDocModel(new Stream(data));
+      pdfModel = new PDFDocModel(new Stream(data));
     });
 
     handler.on('page_request', function wphSetupPageRequest(pageNum) {
@@ -28201,14 +28164,14 @@ var WorkerMessageHandler = {
       var start = Date.now();
 
       var dependency = [];
-      var IRQueue = null;
+      var operatorList = null;
       try {
-        var page = pdfDoc.getPage(pageNum);
+        var page = pdfModel.getPage(pageNum);
         // Pre compile the pdf page and fetch the fonts/images.
-        IRQueue = page.getIRQueue(handler, dependency);
+        operatorList = page.getOperatorList(handler, dependency);
       } catch (e) {
         var minimumStackMessage =
-            'worker.js: while trying to getPage() and getIRQueue()';
+            'worker.js: while trying to getPage() and getOperatorList()';
 
         // Turn the error into an obj that can be serialized
         if (typeof e === 'string') {
@@ -28235,8 +28198,8 @@ var WorkerMessageHandler = {
         return;
       }
 
-      console.log('page=%d - getIRQueue: time=%dms, len=%d', pageNum,
-                                  Date.now() - start, IRQueue.fnArray.length);
+      console.log('page=%d - getOperatorList: time=%dms, len=%d', pageNum,
+                              Date.now() - start, operatorList.fnArray.length);
 
       // Filter the dependecies for fonts.
       var fonts = {};
@@ -28249,59 +28212,10 @@ var WorkerMessageHandler = {
 
       handler.send('page', {
         pageNum: pageNum,
-        IRQueue: IRQueue,
+        operatorList: operatorList,
         depFonts: Object.keys(fonts)
       });
     }, this);
-
-    handler.on('font', function wphSetupFont(data) {
-      var objId = data[0];
-      var name = data[1];
-      var file = data[2];
-      var properties = data[3];
-
-      var font = {
-        name: name,
-        file: file,
-        properties: properties
-      };
-
-      // Some fonts don't have a file, e.g. the build in ones like Arial.
-      if (file) {
-        var fontFileDict = new Dict();
-        fontFileDict.map = file.dict.map;
-
-        var fontFile = new Stream(file.bytes, file.start,
-                                  file.end - file.start, fontFileDict);
-
-        // Check if this is a FlateStream. Otherwise just use the created
-        // Stream one. This makes complex_ttf_font.pdf work.
-        var cmf = file.bytes[0];
-        if ((cmf & 0x0f) == 0x08) {
-          font.file = new FlateStream(fontFile);
-        } else {
-          font.file = fontFile;
-        }
-      }
-
-      var obj = new Font(font.name, font.file, font.properties);
-
-      var str = '';
-      var objData = obj.data;
-      if (objData) {
-        var length = objData.length;
-        for (var j = 0; j < length; ++j)
-          str += String.fromCharCode(objData[j]);
-      }
-
-      obj.str = str;
-
-      // Remove the data array form the font object, as it's not needed
-      // anymore as we sent over the ready str.
-      delete obj.data;
-
-      handler.send('font_ready', [objId, obj]);
-    });
   }
 };
 
