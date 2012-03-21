@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '75dcd2b';
+  PDFJS.build = '8ee818e';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -3124,7 +3124,6 @@ var XRef = (function XRefClosure() {
         return dict;
       // nothing helps
       error('Invalid PDF structure');
-      return null;
     },
     readXRef: function readXref(startXRef) {
       var stream = this.stream;
@@ -3333,12 +3332,10 @@ var PDFObjects = (function PDFObjectsClosure() {
 
       // If there isn't an object yet or the object isn't resolved, then the
       // data isn't ready yet!
-      if (!obj || !obj.isResolved) {
+      if (!obj || !obj.isResolved)
         error('Requesting object that isn\'t resolved yet ' + objId);
-        return null;
-      } else {
-        return obj.data;
-      }
+
+      return obj.data;
     },
 
     /**
@@ -12405,7 +12402,6 @@ var CipherTransformFactory = (function CipherTransformFactoryClosure() {
       };
     }
     error('Unknown crypto method');
-    return null;
   }
 
   CipherTransformFactory.prototype = {
@@ -13826,7 +13822,10 @@ var FontLoader = {
       // Validate the names parameter -- the values can used to construct HTML.
       if (!/^\w+$/.test(names.join(''))) {
         error('Invalid font name(s): ' + names.join());
-        return; // Keep the return in case if error() did not throw.
+
+        // Normally the error-function throws. But if a malicious code
+        // intercepts the function call then the return is needed.
+        return;
       }
 
       var div = document.createElement('div');
@@ -24873,15 +24872,14 @@ var Parser = (function ParserClosure() {
         this.shift();
         var dict = new Dict();
         while (!isCmd(this.buf1, '>>') && !isEOF(this.buf1)) {
-          if (!isName(this.buf1)) {
+          if (!isName(this.buf1))
             error('Dictionary key must be a name object');
-          } else {
-            var key = this.buf1.name;
-            this.shift();
-            if (isEOF(this.buf1))
-              break;
-            dict.set(key, this.getObj(cipherTransform));
-          }
+
+          var key = this.buf1.name;
+          this.shift();
+          if (isEOF(this.buf1))
+            break;
+          dict.set(key, this.getObj(cipherTransform));
         }
         if (isEOF(this.buf1))
           error('End of file inside dictionary');
@@ -24926,15 +24924,14 @@ var Parser = (function ParserClosure() {
       // parse dictionary
       var dict = new Dict();
       while (!isCmd(this.buf1, 'ID') && !isEOF(this.buf1)) {
-        if (!isName(this.buf1)) {
+        if (!isName(this.buf1))
           error('Dictionary key must be a name object');
-        } else {
-          var key = this.buf1.name;
-          this.shift();
-          if (isEOF(this.buf1))
-            break;
-          dict.set(key, this.getObj(cipherTransform));
-        }
+
+        var key = this.buf1.name;
+        this.shift();
+        if (isEOF(this.buf1))
+          break;
+        dict.set(key, this.getObj(cipherTransform));
       }
 
       // parse image stream
@@ -24996,10 +24993,8 @@ var Parser = (function ParserClosure() {
 
       // get length
       var length = this.fetchIfRef(dict.get('Length'));
-      if (!isInt(length)) {
+      if (!isInt(length))
         error('Bad ' + length + ' attribute in stream');
-        length = 0;
-      }
 
       // skip over the stream data
       stream.pos = pos + length;
@@ -25028,14 +25023,13 @@ var Parser = (function ParserClosure() {
           filter = filterArray[i];
           if (!isName(filter))
             error('Bad filter name: ' + filter);
-          else {
-            params = null;
-            if (isArray(paramsArray) && (i in paramsArray))
-              params = paramsArray[i];
-            stream = this.makeFilter(stream, filter.name, length, params);
-            // after the first stream the length variable is invalid
-            length = null;
-          }
+
+          params = null;
+          if (isArray(paramsArray) && (i in paramsArray))
+            params = paramsArray[i];
+          stream = this.makeFilter(stream, filter.name, length, params);
+          // after the first stream the length variable is invalid
+          length = null;
         }
       }
       return stream;
@@ -25347,17 +25341,15 @@ var Lexer = (function LexerClosure() {
         // fall through
         case ')':
           error('Illegal character: ' + ch);
-          return Error;
       }
 
       // command
       var str = ch;
       while (!!(ch = stream.lookChar()) && !specialChars[ch.charCodeAt(0)]) {
         stream.skip();
-        if (str.length == 128) {
+        if (str.length == 128)
           error('Command token too long: ' + str.length);
-          break;
-        }
+
         str += ch;
       }
       if (str == 'true')
@@ -25414,7 +25406,6 @@ var Linearization = (function LinearizationClosure() {
         return obj;
       }
       error('"' + name + '" field in linearization table is invalid');
-      return 0;
     },
     getHint: function linearizationGetHint(index) {
       var linDict = this.linDict;
@@ -25427,7 +25418,6 @@ var Linearization = (function LinearizationClosure() {
         return obj2;
       }
       error('Hints table in linearization table is invalid: ' + index);
-      return 0;
     },
     get length() {
       if (!isDict(this.linDict))
@@ -25550,7 +25540,7 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
     fnObj = xref.fetchIfRef(fnObj);
     if (isArray(fnObj))
       error('No support for array of functions');
-    else if (!isPDFFunction(fnObj))
+    if (!isPDFFunction(fnObj))
       error('Invalid function');
     var fn = PDFFunction.parse(xref, fnObj);
 
