@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'd9bb76d';
+  PDFJS.build = 'e18264d';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -13233,6 +13233,9 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var firstChar = xref.fetchIfRef(dict.get('FirstChar')) || 0;
       var lastChar = xref.fetchIfRef(dict.get('LastChar')) || maxCharIndex;
       var fontName = xref.fetchIfRef(descriptor.get('FontName'));
+      // Some bad pdf's have a string as the font name.
+      if (isString(fontName))
+        fontName = new Name(fontName);
       assertWellFormed(isName(fontName), 'invalid font name');
 
       var fontFile = descriptor.get('FontFile', 'FontFile2', 'FontFile3');
