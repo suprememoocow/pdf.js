@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '1943134';
+  PDFJS.build = 'afebc33';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -600,14 +600,6 @@ var PDFDocModel = (function PDFDocModelClosure() {
                           this.mainXRefEntriesOffset);
       this.xref = xref;
       this.catalog = new Catalog(xref);
-      if (xref.trailer && xref.trailer.has('ID')) {
-        var fileID = '';
-        var id = xref.fetchIfRef(xref.trailer.get('ID'))[0];
-        id.split('').forEach(function(el) {
-          fileID += Number(el.charCodeAt(0)).toString(16);
-        });
-        this.fileID = fileID;
-      }
     },
     get numPages() {
       var linearization = this.linearization;
@@ -615,21 +607,33 @@ var PDFDocModel = (function PDFDocModelClosure() {
       // shadow the prototype getter
       return shadow(this, 'numPages', num);
     },
+    getDocumentInfo: function pdfDocGetDocumentInfo() {
+      var info;
+      if (this.xref.trailer.has('Info'))
+        info = this.xref.fetch(this.xref.trailer.get('Info'));
+
+      return shadow(this, 'getDocumentInfo', info);
+    },
     getFingerprint: function pdfDocGetFingerprint() {
-      if (this.fileID) {
-        return this.fileID;
+      var xref = this.xref, fileID;
+      if (xref.trailer.has('ID')) {
+        fileID = '';
+        var id = xref.fetchIfRef(xref.trailer.get('ID'))[0];
+        id.split('').forEach(function(el) {
+          fileID += Number(el.charCodeAt(0)).toString(16);
+        });
       } else {
         // If we got no fileID, then we generate one,
         // from the first 100 bytes of PDF
         var data = this.stream.bytes.subarray(0, 100);
         var hash = calculateMD5(data, 0, data.length);
-        var strHash = '';
+        fileID = '';
         for (var i = 0, length = hash.length; i < length; i++) {
-          strHash += Number(hash[i]).toString(16);
+          fileID += Number(hash[i]).toString(16);
         }
-
-        return strHash;
       }
+
+      return shadow(this, 'getFingerprint', fileID);
     },
     getPage: function pdfDocGetPage(n) {
       return this.catalog.getPage(n);
@@ -658,6 +662,7 @@ var PDFDoc = (function PDFDocClosure() {
     this.stream = stream;
     this.pdfModel = new PDFDocModel(stream);
     this.fingerprint = this.pdfModel.getFingerprint();
+    this.info = this.pdfModel.getDocumentInfo();
     this.catalog = this.pdfModel.catalog;
     this.objs = new PDFObjects();
 
@@ -798,7 +803,7 @@ var PDFDoc = (function PDFDocClosure() {
           error('Only 3 component or 1 component can be returned');
 
         var img = new Image();
-        img.onload = (function jpegImageLoaderOnload() {
+        img.onload = (function messageHandler_onloadClosure() {
           var width = img.width;
           var height = img.height;
           var size = width * height;
@@ -2721,6 +2726,22 @@ var Catalog = (function CatalogClosure() {
   }
 
   Catalog.prototype = {
+    get metadata() {
+      var ref = this.catDict.get('Metadata');
+      var stream = this.xref.fetchIfRef(ref);
+      var metadata;
+      if (stream && isDict(stream.dict)) {
+        var type = stream.dict.get('Type');
+        var subtype = stream.dict.get('Subtype');
+
+        if (isName(type) && isName(subtype) &&
+            type.name === 'Metadata' && subtype.name === 'XML') {
+          metadata = stringToPDFString(bytesToString(stream.getBytes()));
+        }
+      }
+
+      return shadow(this, 'metadata', metadata);
+    },
     get toplevelPagesDict() {
       var pagesObj = this.catDict.get('Pages');
       assertWellFormed(isRef(pagesObj), 'invalid top-level pages reference');
@@ -17576,7 +17597,7 @@ var CFFFDSelect = (function CFFFDSelectClosure() {
 
 // Helper class to keep track of where an offset is within the data and helps
 // filling in that offset once it's known.
-var CFFOffsetTracker = (function CFFOffsetTracker() {
+var CFFOffsetTracker = (function CFFOffsetTrackerClosure() {
   function CFFOffsetTracker() {
     this.offsets = {};
   }
@@ -22546,7 +22567,7 @@ var PDFImage = (function PDFImageClosure() {
 
 function loadJpegStream(id, imageData, objs) {
   var img = new Image();
-  img.onload = (function jpegImageLoaderOnload() {
+  img.onload = (function loadJpegStream_onloadClosure() {
     objs.resolve(id, img);
   });
   img.src = 'data:image/jpeg;base64,' + window.btoa(imageData);
@@ -30004,7 +30025,7 @@ var JpxImage = (function JpxImageClosure() {
   })();
 
   // Implements C.3. Arithmetic decoding procedures
-  var ArithmeticDecoder = (function arithmeticDecoderClosure() {
+  var ArithmeticDecoder = (function ArithmeticDecoderClosure() {
     var QeTable = [
       {qe: 0x5601, nmps: 1, nlps: 1, switchFlag: 1},
       {qe: 0x3401, nmps: 2, nlps: 6, switchFlag: 0},
@@ -32137,5 +32158,71 @@ var bidi = PDFJS.bidi = (function bidiClosure() {
   return bidi;
 })();
 
+/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
+
+'use strict';
+
+var Metadata = PDFJS.Metadata = (function MetadataClosure() {
+  function Metadata(meta) {
+    if (typeof meta === 'string') {
+      var parser = new DOMParser();
+      meta = parser.parseFromString(meta, 'application/xml');
+    } else if (!(meta instanceof Document)) {
+      error('Metadata: Invalid metadata object');
+    }
+
+    this.metaDocument = meta;
+    this.metadata = {};
+    this.parse();
+  }
+
+  Metadata.prototype = {
+    parse: function() {
+      var doc = this.metaDocument;
+      var rdf = doc.documentElement;
+
+      if (rdf.nodeName.toLowerCase() !== 'rdf:rdf') { // Wrapped in <xmpmeta>
+        rdf = rdf.firstChild;
+        while (rdf && rdf.nodeName.toLowerCase() !== 'rdf:rdf')
+          rdf = rdf.nextSibling;
+      }
+
+      var nodeName = (rdf) ? rdf.nodeName.toLowerCase() : null;
+      if (!rdf || nodeName !== 'rdf:rdf' || !rdf.hasChildNodes())
+        return;
+
+      var childNodes = rdf.childNodes, desc, namespace, entries, entry;
+
+      for (var i = 0, length = childNodes.length; i < length; i++) {
+        desc = childNodes[i];
+        if (desc.nodeName.toLowerCase() !== 'rdf:description')
+          continue;
+
+        entries = [];
+        for (var ii = 0, iLength = desc.childNodes.length; ii < iLength; ii++) {
+          if (desc.childNodes[ii].nodeName.toLowerCase() !== '#text')
+            entries.push(desc.childNodes[ii]);
+        }
+
+        for (ii = 0, iLength = entries.length; ii < iLength; ii++) {
+          var entry = entries[ii];
+          var name = entry.nodeName.toLowerCase();
+          this.metadata[name] = entry.textContent.trim();
+        }
+      }
+    },
+
+    get: function(name) {
+      return this.metadata[name] || null;
+    },
+
+    has: function(name) {
+      return typeof this.metadata[name] !== 'undefined';
+    }
+  };
+
+  return Metadata;
+})();
 
 }).call((typeof window === 'undefined') ? this : window);
