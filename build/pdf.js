@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'af478b4';
+  PDFJS.build = 'dd31999';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -86,13 +86,13 @@ var Page = (function PageClosure() {
 
   Page.prototype = {
     getPageProp: function Page_getPageProp(key) {
-      return this.xref.fetchIfRef(this.pageDict.get(key));
+      return this.pageDict.get(key);
     },
     inheritPageProp: function Page_inheritPageProp(key) {
       var dict = this.pageDict;
       var obj = dict.get(key);
       while (obj === undefined) {
-        dict = this.xref.fetchIfRef(dict.get('Parent'));
+        dict = dict.get('Parent');
         if (!dict)
           break;
         obj = dict.get(key);
@@ -212,8 +212,8 @@ var Page = (function PageClosure() {
       this.stats.time('Build IR Queue');
 
       var xref = this.xref;
-      var content = xref.fetchIfRef(this.content);
-      var resources = xref.fetchIfRef(this.resources);
+      var content = this.content;
+      var resources = this.resources;
       if (isArray(content)) {
         // fetching items
         var i, n = content.length;
@@ -255,8 +255,8 @@ var Page = (function PageClosure() {
       var stats = this.stats;
       stats.time('Rendering');
       var xref = this.xref;
-      var resources = xref.fetchIfRef(this.resources);
-      var mediaBox = xref.fetchIfRef(this.mediaBox);
+      var resources = this.resources;
+      var mediaBox = this.mediaBox;
       assertWellFormed(isDict(resources), 'invalid page resources');
 
       gfx.xref = xref;
@@ -320,7 +320,7 @@ var Page = (function PageClosure() {
       function getInheritableProperty(annotation, name) {
         var item = annotation;
         while (item && !item.has(name)) {
-          item = xref.fetchIfRef(item.get('Parent'));
+          item = item.get('Parent');
         }
         if (!item)
           return null;
@@ -343,7 +343,7 @@ var Page = (function PageClosure() {
         }
       }
 
-      var annotations = xref.fetchIfRef(this.annotations) || [];
+      var annotations = this.annotations || [];
       var i, n = annotations.length;
       var items = [];
       for (i = 0; i < n; ++i) {
@@ -366,7 +366,7 @@ var Page = (function PageClosure() {
         item.height = Math.abs(topLeftCorner.y - bottomRightCorner.y);
         switch (subtype.name) {
           case 'Link':
-            var a = this.xref.fetchIfRef(annotation.get('A'));
+            var a = annotation.get('A');
             if (a) {
               switch (a.get('S').name) {
                 case 'URI':
@@ -399,21 +399,22 @@ var Page = (function PageClosure() {
             var fieldName = [];
             var namedItem = annotation, ref = annotationRef;
             while (namedItem) {
-              var parentRef = namedItem.get('Parent');
-              var parent = xref.fetchIfRef(parentRef);
+              var parent = namedItem.get('Parent');
+              var parentRef = namedItem.getRaw('Parent');
               var name = namedItem.get('T');
-              if (name)
+              if (name) {
                 fieldName.unshift(stringToPDFString(name));
-              else {
+              } else {
                 // The field name is absent, that means more than one field
                 // with the same name may exist. Replacing the empty name
                 // with the '`' plus index in the parent's 'Kids' array.
                 // This is not in the PDF spec but necessary to id the
                 // the input controls.
-                var kids = xref.fetchIfRef(parent.get('Kids'));
+                var kids = parent.get('Kids');
                 var j, jj;
                 for (j = 0, jj = kids.length; j < jj; j++) {
-                  if (kids[j].num == ref.num && kids[j].gen == ref.gen)
+                  var kidRef = kids[j];
+                  if (kidRef.num == ref.num && kidRef.gen == ref.gen)
                     break;
                 }
                 fieldName.unshift('`' + j);
@@ -503,7 +504,7 @@ var PDFDocModel = (function PDFDocModelClosure() {
     assertWellFormed(stream.length > 0, 'stream must have data');
     this.stream = stream;
     this.setup();
-    this.acroForm = this.xref.fetchIfRef(this.catalog.catDict.get('AcroForm'));
+    this.acroForm = this.catalog.catDict.get('AcroForm');
   }
 
   function find(stream, needle, limit, backwards) {
@@ -610,7 +611,7 @@ var PDFDocModel = (function PDFDocModelClosure() {
     getDocumentInfo: function PDFDocModel_getDocumentInfo() {
       var info;
       if (this.xref.trailer.has('Info'))
-        info = this.xref.fetch(this.xref.trailer.get('Info'));
+        info = this.xref.trailer.get('Info');
 
       return shadow(this, 'getDocumentInfo', info);
     },
@@ -618,7 +619,7 @@ var PDFDocModel = (function PDFDocModelClosure() {
       var xref = this.xref, fileID;
       if (xref.trailer.has('ID')) {
         fileID = '';
-        var id = xref.fetchIfRef(xref.trailer.get('ID'))[0];
+        var id = xref.trailer.get('ID')[0];
         id.split('').forEach(function(el) {
           fileID += Number(el.charCodeAt(0)).toString(16);
         });
@@ -2651,23 +2652,39 @@ var Cmd = (function CmdClosure() {
 })();
 
 var Dict = (function DictClosure() {
-  function Dict() {
+  // xref is optional
+  function Dict(xref) {
+    // Map should only be used internally, use functions below to access.
     this.map = Object.create(null);
+    this.xref = xref;
   }
 
   Dict.prototype = {
+    // automatically dereferences Ref objects
     get: function Dict_get(key1, key2, key3) {
       var value;
+      var xref = this.xref;
       if (typeof (value = this.map[key1]) != 'undefined' || key1 in this.map ||
           typeof key2 == 'undefined') {
-        return value;
+        return xref ? this.xref.fetchIfRef(value) : value;
       }
       if (typeof (value = this.map[key2]) != 'undefined' || key2 in this.map ||
           typeof key3 == 'undefined') {
-        return value;
+        return xref ? this.xref.fetchIfRef(value) : value;
       }
-
-      return this.map[key3] || null;
+      value = this.map[key3] || null;
+      return xref ? this.xref.fetchIfRef(value) : value;
+    },
+    // no dereferencing
+    getRaw: function Dict_getRaw(key) {
+      return this.map[key];
+    },
+    // creates new map and dereferences all Refs
+    getAll: function Dict_getAll() {
+      var all = {};
+      for (var key in this.map)
+        all[key] = this.get(key);
+      return all;
     },
 
     set: function Dict_set(key, value) {
@@ -2680,7 +2697,7 @@ var Dict = (function DictClosure() {
 
     forEach: function Dict_forEach(callback) {
       for (var key in this.map) {
-        callback(key, this.map[key]);
+        callback(key, this.get(key));
       }
     }
   };
@@ -2729,8 +2746,7 @@ var Catalog = (function CatalogClosure() {
 
   Catalog.prototype = {
     get metadata() {
-      var ref = this.catDict.get('Metadata');
-      var stream = this.xref.fetchIfRef(ref);
+      var stream = this.catDict.get('Metadata');
       var metadata;
       if (stream && isDict(stream.dict)) {
         var type = stream.dict.get('Type');
@@ -2746,18 +2762,16 @@ var Catalog = (function CatalogClosure() {
     },
     get toplevelPagesDict() {
       var pagesObj = this.catDict.get('Pages');
-      assertWellFormed(isRef(pagesObj), 'invalid top-level pages reference');
-      var xrefObj = this.xref.fetch(pagesObj);
-      assertWellFormed(isDict(xrefObj), 'invalid top-level pages dictionary');
+      assertWellFormed(isDict(pagesObj), 'invalid top-level pages dictionary');
       // shadow the prototype getter
-      return shadow(this, 'toplevelPagesDict', xrefObj);
+      return shadow(this, 'toplevelPagesDict', pagesObj);
     },
     get documentOutline() {
       var xref = this.xref;
-      var obj = xref.fetchIfRef(this.catDict.get('Outlines'));
+      var obj = this.catDict.get('Outlines');
       var root = { items: [] };
       if (isDict(obj)) {
-        obj = obj.get('First');
+        obj = obj.getRaw('First');
         var processed = new RefSet();
         if (isRef(obj)) {
           var queue = [{obj: obj, parent: root}];
@@ -2766,20 +2780,20 @@ var Catalog = (function CatalogClosure() {
           processed.put(obj);
           while (queue.length > 0) {
             var i = queue.shift();
-            var outlineDict = xref.fetch(i.obj);
+            var outlineDict = xref.fetchIfRef(i.obj);
             if (outlineDict === null)
               continue;
             if (!outlineDict.has('Title'))
               error('Invalid outline item');
             var dest = outlineDict.get('A');
             if (dest)
-              dest = xref.fetchIfRef(dest).get('D');
+              dest = dest.get('D');
             else if (outlineDict.has('Dest')) {
-              dest = outlineDict.get('Dest');
+              dest = outlineDict.getRaw('Dest');
               if (isName(dest))
                 dest = dest.name;
             }
-            var title = xref.fetchIfRef(outlineDict.get('Title'));
+            var title = outlineDict.get('Title');
             var outlineItem = {
               dest: dest,
               title: stringToPDFString(title),
@@ -2790,12 +2804,12 @@ var Catalog = (function CatalogClosure() {
               items: []
             };
             i.parent.items.push(outlineItem);
-            obj = outlineDict.get('First');
+            obj = outlineDict.getRaw('First');
             if (isRef(obj) && !processed.has(obj)) {
               queue.push({obj: obj, parent: outlineItem});
               processed.put(obj);
             }
-            obj = outlineDict.get('Next');
+            obj = outlineDict.getRaw('Next');
             if (isRef(obj) && !processed.has(obj)) {
               queue.push({obj: obj, parent: i.parent});
               processed.put(obj);
@@ -2823,7 +2837,7 @@ var Catalog = (function CatalogClosure() {
       for (var i = 0, ii = kids.length; i < ii; ++i) {
         var kid = kids[i];
         assertWellFormed(isRef(kid),
-                         'page dictionary kid is not a reference');
+                        'page dictionary kid is not a reference');
         var obj = this.xref.fetch(kid);
         if (isDict(obj, 'Page') || (isDict(obj) && !obj.has('Kids'))) {
           pageCache.push(new Page(this.xref, pageCache.length, obj, kid));
@@ -2837,8 +2851,7 @@ var Catalog = (function CatalogClosure() {
       }
     },
     get destinations() {
-      function fetchDestination(xref, ref) {
-        var dest = xref.fetchIfRef(ref);
+      function fetchDestination(dest) {
         return isDict(dest) ? dest.get('D') : dest;
       }
 
@@ -2846,16 +2859,16 @@ var Catalog = (function CatalogClosure() {
       var dests = {}, nameTreeRef, nameDictionaryRef;
       var obj = this.catDict.get('Names');
       if (obj)
-        nameTreeRef = xref.fetchIfRef(obj).get('Dests');
+        nameTreeRef = obj.getRaw('Dests');
       else if (this.catDict.has('Dests'))
         nameDictionaryRef = this.catDict.get('Dests');
 
       if (nameDictionaryRef) {
         // reading simple destination dictionary
-        obj = xref.fetchIfRef(nameDictionaryRef);
+        obj = nameDictionaryRef;
         obj.forEach(function catalogForEach(key, value) {
           if (!value) return;
-          dests[key] = fetchDestination(xref, value);
+          dests[key] = fetchDestination(value);
         });
       }
       if (nameTreeRef) {
@@ -2879,7 +2892,7 @@ var Catalog = (function CatalogClosure() {
           }
           var names = obj.get('Names');
           for (i = 0, n = names.length; i < n; i += 2) {
-            dests[names[i]] = fetchDestination(xref, names[i + 1]);
+            dests[names[i]] = fetchDestination(xref.fetchIfRef(names[i + 1]));
           }
         }
       }
@@ -2904,6 +2917,7 @@ var XRef = (function XRefClosure() {
     this.entries = [];
     this.xrefstms = {};
     var trailerDict = this.readXRef(startXRef);
+    trailerDict.xref = this;
     this.trailer = trailerDict;
     // prepare the XRef cache
     this.cache = [];
@@ -2911,12 +2925,12 @@ var XRef = (function XRefClosure() {
     var encrypt = trailerDict.get('Encrypt');
     if (encrypt) {
       var fileId = trailerDict.get('ID');
-      this.encrypt = new CipherTransformFactory(this.fetch(encrypt),
+      this.encrypt = new CipherTransformFactory(encrypt,
                                                 fileId[0] /*, password */);
     }
 
     // get the root dictionary (catalog) object
-    if (!isRef(this.root = trailerDict.get('Root')))
+    if (!(this.root = trailerDict.get('Root')))
       error('Invalid root reference');
   }
 
@@ -3131,7 +3145,7 @@ var XRef = (function XRefClosure() {
       var dict;
       for (var i = 0, ii = trailers.length; i < ii; ++i) {
         stream.pos = trailers[i];
-        var parser = new Parser(new Lexer(stream), true);
+        var parser = new Parser(new Lexer(stream), true, null);
         var obj = parser.getObj();
         if (!isCmd(obj, 'trailer'))
           continue;
@@ -3153,7 +3167,7 @@ var XRef = (function XRefClosure() {
       stream.pos = startXRef;
 
       try {
-        var parser = new Parser(new Lexer(stream), true);
+        var parser = new Parser(new Lexer(stream), true, null);
         var obj = parser.getObj();
         var dict;
 
@@ -3213,6 +3227,7 @@ var XRef = (function XRefClosure() {
       return this.fetch(obj);
     },
     fetch: function XRef_fetch(ref, suppressEncryption) {
+      assertWellFormed(isRef(ref), 'ref object is not a reference');
       var num = ref.num;
       if (num in this.cache)
         return this.cache[num];
@@ -3274,7 +3289,7 @@ var XRef = (function XRefClosure() {
       if (!isInt(first) || !isInt(n)) {
         error('invalid first and n parameters for ObjStm stream');
       }
-      parser = new Parser(new Lexer(stream), false);
+      parser = new Parser(new Lexer(stream), false, this);
       var i, entries = [], nums = [];
       // read the object numbers to populate cache
       for (i = 0; i < n; ++i) {
@@ -3300,7 +3315,7 @@ var XRef = (function XRefClosure() {
       return e;
     },
     getCatalogObj: function XRef_getCatalogObj() {
-      return this.fetch(this.root);
+      return this.root;
     }
   };
 
@@ -3679,13 +3694,13 @@ var PDFFunction = (function PDFFunctionClosure() {
       if (inputSize != 1)
         error('Bad domain for stiched function');
 
-      var fnRefs = xref.fetchIfRef(dict.get('Functions'));
+      var fnRefs = dict.get('Functions');
       var fns = [];
       for (var i = 0, ii = fnRefs.length; i < ii; ++i)
         fns.push(PDFFunction.getIR(xref, xref.fetchIfRef(fnRefs[i])));
 
-      var bounds = xref.fetchIfRef(dict.get('Bounds'));
-      var encode = xref.fetchIfRef(dict.get('Encode'));
+      var bounds = dict.get('Bounds');
+      var encode = dict.get('Encode');
 
       return [CONSTRUCT_STICHED, domain, bounds, encode, fns];
     },
@@ -11393,7 +11408,7 @@ var ColorSpace = (function ColorSpaceClosure() {
 
   ColorSpace.parseToIR = function ColorSpace_parseToIR(cs, xref, res) {
     if (isName(cs)) {
-      var colorSpaces = xref.fetchIfRef(res.get('ColorSpace'));
+      var colorSpaces = res.get('ColorSpace');
       if (isDict(colorSpaces)) {
         var refcs = colorSpaces.get(cs.name);
         if (refcs)
@@ -11475,7 +11490,7 @@ var ColorSpace = (function ColorSpaceClosure() {
           var tintFnIR = PDFFunction.getIR(xref, xref.fetchIfRef(cs[3]));
           return ['AlternateCS', numComps, alt, tintFnIR];
         case 'Lab':
-          var params = cs[1].map;
+          var params = cs[1].getAll();
           return ['LabCS', params];
         default:
           error('unimplemented color space object "' + mode + '"');
@@ -12584,16 +12599,14 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         }
       }
 
-      function handleSetFont(fontName, fontRef) {
+      function handleSetFont(fontName, font) {
         var loadedName = null;
 
         var fontRes = resources.get('Font');
 
         assert(fontRes, 'fontRes not available');
 
-        fontRes = xref.fetchIfRef(fontRes);
-        fontRef = fontRef || fontRes.get(fontName);
-        var font = xref.fetchIfRef(fontRef);
+        font = xref.fetchIfRef(font) || fontRes.get(fontName);
         assertWellFormed(isDict(font));
         if (!font.translated) {
           font.translated = self.translateFont(font, xref, resources,
@@ -12703,10 +12716,10 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var fnArray = queue.fnArray, argsArray = queue.argsArray;
       var dependencyArray = dependency || [];
 
-      resources = xref.fetchIfRef(resources) || new Dict();
-      var xobjs = xref.fetchIfRef(resources.get('XObject')) || new Dict();
-      var patterns = xref.fetchIfRef(resources.get('Pattern')) || new Dict();
-      var parser = new Parser(new Lexer(stream), false);
+      resources = resources || new Dict();
+      var xobjs = resources.get('XObject') || new Dict();
+      var patterns = resources.get('Pattern') || new Dict();
+      var parser = new Parser(new Lexer(stream), false, xref);
       var res = resources;
       var args = [], obj;
       var getObjBt = function getObjBt() {
@@ -12738,7 +12751,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
             var patternName = args[args.length - 1];
             // SCN/scn applies patterns along with normal colors
             if (isName(patternName)) {
-              var pattern = xref.fetchIfRef(patterns.get(patternName.name));
+              var pattern = patterns.get(patternName.name);
               if (pattern) {
                 var dict = isStream(pattern) ? pattern.dict : pattern;
                 var typeNum = dict.get('PatternType');
@@ -12756,7 +12769,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                   args = TilingPattern.getIR(operatorList, dict, args);
                 }
                 else if (typeNum == SHADING_PATTERN) {
-                  var shading = xref.fetchIfRef(dict.get('Shading'));
+                  var shading = dict.get('Shading');
                   var matrix = dict.get('Matrix');
                   var pattern = Pattern.parseShading(shading, matrix, xref, res,
                                                                   null /*ctx*/);
@@ -12771,7 +12784,6 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
             var name = args[0].name;
             var xobj = xobjs.get(name);
             if (xobj) {
-              xobj = xref.fetchIfRef(xobj);
               assertWellFormed(isStream(xobj), 'XObject should be a stream');
 
               var type = xobj.dict.get('Subtype');
@@ -12822,11 +12834,11 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
               args = [ColorSpace.parseToIR(args[0], xref, resources)];
               break;
             case 'shadingFill':
-              var shadingRes = xref.fetchIfRef(res.get('Shading'));
+              var shadingRes = res.get('Shading');
               if (!shadingRes)
                 error('No shading resource found');
 
-              var shading = xref.fetchIfRef(shadingRes.get(args[0].name));
+              var shading = shadingRes.get(args[0].name);
               if (!shading)
                 error('No shading object found');
 
@@ -12838,12 +12850,12 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
               break;
             case 'setGState':
               var dictName = args[0];
-              var extGState = xref.fetchIfRef(resources.get('ExtGState'));
+              var extGState = resources.get('ExtGState');
 
               if (!isDict(extGState) || !extGState.has(dictName.name))
                 break;
 
-              var gsState = xref.fetchIfRef(extGState.get(dictName.name));
+              var gsState = extGState.get(dictName.name);
 
               // This array holds the converted/processed state data.
               var gsStateObj = [];
@@ -12922,7 +12934,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
       if (properties.composite) {
         // CIDSystemInfo helps to match CID to glyphs
-        var cidSystemInfo = xref.fetchIfRef(dict.get('CIDSystemInfo'));
+        var cidSystemInfo = dict.get('CIDSystemInfo');
         if (isDict(cidSystemInfo)) {
           properties.cidSystemInfo = {
             registry: cidSystemInfo.get('Registry'),
@@ -12931,7 +12943,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
           };
         }
 
-        var cidToGidMap = xref.fetchIfRef(dict.get('CIDToGIDMap'));
+        var cidToGidMap = dict.get('CIDToGIDMap');
         if (isStream(cidToGidMap))
           properties.cidToGidMap = this.readCidToGidMap(cidToGidMap);
       }
@@ -12942,7 +12954,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                          Encodings.symbolsEncoding : Encodings.StandardEncoding;
       var hasEncoding = dict.has('Encoding');
       if (hasEncoding) {
-        var encoding = xref.fetchIfRef(dict.get('Encoding'));
+        var encoding = dict.get('Encoding');
         if (isDict(encoding)) {
           var baseName = encoding.get('BaseEncoding');
           if (baseName)
@@ -12975,7 +12987,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
     },
 
     readToUnicode: function PartialEvaluator_readToUnicode(toUnicode, xref) {
-      var cmapObj = xref.fetchIfRef(toUnicode);
+      var cmapObj = toUnicode;
       var charToUnicode = [];
       if (isName(cmapObj)) {
         var isIdentityMap = cmapObj.name.substr(0, 9) == 'Identity-';
@@ -13117,9 +13129,9 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var glyphsWidths = [];
       var defaultWidth = 0;
       if (properties.composite) {
-        defaultWidth = xref.fetchIfRef(dict.get('DW')) || 1000;
+        defaultWidth = dict.get('DW') || 1000;
 
-        var widths = xref.fetchIfRef(dict.get('W'));
+        var widths = dict.get('W');
         if (widths) {
           var start = 0, end = 0;
           for (var i = 0, ii = widths.length; i < ii; i++) {
@@ -13140,7 +13152,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         }
       } else {
         var firstChar = properties.firstChar;
-        var widths = xref.fetchIfRef(dict.get('Widths'));
+        var widths = dict.get('Widths');
         if (widths) {
           var j = firstChar;
           for (var i = 0, ii = widths.length; i < ii; i++)
@@ -13195,10 +13207,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
         if (!df)
           return null;
 
-        if (isRef(df))
-          df = xref.fetch(df);
-
-        dict = xref.fetchIfRef(isRef(df) ? df : df[0]);
+        dict = isArray(df) ? xref.fetchIfRef(df[0]) : df;
 
         type = dict.get('Subtype');
         assertWellFormed(isName(type), 'invalid font Subtype');
@@ -13206,7 +13215,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       }
       var maxCharIndex = composite ? 0xFFFF : 0xFF;
 
-      var descriptor = xref.fetchIfRef(dict.get('FontDescriptor'));
+      var descriptor = dict.get('FontDescriptor');
       if (!descriptor) {
         if (type.name == 'Type3') {
           // FontDescriptor is only required for Type3 fonts when the document
@@ -13255,9 +13264,9 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       // to ignore this rule when a variant of a standart font is used.
       // TODO Fill the width array depending on which of the base font this is
       // a variant.
-      var firstChar = xref.fetchIfRef(dict.get('FirstChar')) || 0;
-      var lastChar = xref.fetchIfRef(dict.get('LastChar')) || maxCharIndex;
-      var fontName = xref.fetchIfRef(descriptor.get('FontName'));
+      var firstChar = dict.get('FirstChar') || 0;
+      var lastChar = dict.get('LastChar') || maxCharIndex;
+      var fontName = descriptor.get('FontName');
       // Some bad pdf's have a string as the font name.
       if (isString(fontName))
         fontName = new Name(fontName);
@@ -13265,19 +13274,14 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
       var fontFile = descriptor.get('FontFile', 'FontFile2', 'FontFile3');
       if (fontFile) {
-        fontFile = xref.fetchIfRef(fontFile);
         if (fontFile.dict) {
           var subtype = fontFile.dict.get('Subtype');
           if (subtype)
             subtype = subtype.name;
 
           var length1 = fontFile.dict.get('Length1');
-          if (!isInt(length1))
-            length1 = xref.fetchIfRef(length1);
 
           var length2 = fontFile.dict.get('Length2');
-          if (!isInt(length2))
-            length2 = xref.fetchIfRef(length2);
         }
       }
 
@@ -13306,12 +13310,12 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
       if (type.name === 'Type3') {
         properties.coded = true;
-        var charProcs = xref.fetchIfRef(dict.get('CharProcs'));
-        var fontResources = xref.fetchIfRef(dict.get('Resources')) || resources;
+        var charProcs = dict.get('CharProcs').getAll();
+        var fontResources = dict.get('Resources') || resources;
         properties.resources = fontResources;
         properties.charProcOperatorList = {};
-        for (var key in charProcs.map) {
-          var glyphStream = xref.fetchIfRef(charProcs.map[key]);
+        for (var key in charProcs) {
+          var glyphStream = charProcs[key];
           properties.charProcOperatorList[key] =
             this.getOperatorList(glyphStream, fontResources, dependency);
         }
@@ -13492,7 +13496,7 @@ var Encodings = {
     'summation', 'product', 'pi', 'integral', 'ordfeminine', 'ordmasculine',
     'Omega', 'ae', 'oslash', 'questiondown', 'exclamdown', 'logicalnot',
     'radical', 'florin', 'approxequal', 'Delta', 'guillemotleft',
-    'guillemotright', 'ellipsis', 'space', 'Agrave', 'Atilde', 'Otilde', 'OE',
+    'guillemotright', 'ellipsis', '', 'Agrave', 'Atilde', 'Otilde', 'OE',
     'oe', 'endash', 'emdash', 'quotedblleft', 'quotedblright', 'quoteleft',
     'quoteright', 'divide', 'lozenge', 'ydieresis', 'Ydieresis', 'fraction',
     'currency', 'guilsinglleft', 'guilsinglright', 'fi', 'fl', 'daggerdbl',
@@ -13544,7 +13548,7 @@ var Encodings = {
     'guilsinglleft', 'OE', 'bullet', 'Zcaron', 'bullet', 'bullet', 'quoteleft',
     'quoteright', 'quotedblleft', 'quotedblright', 'bullet', 'endash',
     'emdash', 'tilde', 'trademark', 'scaron', 'guilsinglright', 'oe', 'bullet',
-    'zcaron', 'Ydieresis', 'space', 'exclamdown', 'cent', 'sterling',
+    'zcaron', 'Ydieresis', '', 'exclamdown', 'cent', 'sterling',
     'currency', 'yen', 'brokenbar', 'section', 'dieresis', 'copyright',
     'ordfeminine', 'guillemotleft', 'logicalnot', 'hyphen', 'registered',
     'macron', 'degree', 'plusminus', 'twosuperior', 'threesuperior', 'acute',
@@ -22325,7 +22329,7 @@ var PDFImage = (function PDFImageClosure() {
       }
     }
 
-    var mask = xref.fetchIfRef(dict.get('Mask'));
+    var mask = dict.get('Mask');
 
     if (mask) {
       TODO('masked images');
@@ -22351,7 +22355,7 @@ var PDFImage = (function PDFImageClosure() {
 
     handleImageData(handler, xref, res, image, imageDataPromise);
 
-    var smask = xref.fetchIfRef(image.dict.get('SMask'));
+    var smask = image.dict.get('SMask');
     if (smask)
       handleImageData(handler, xref, res, smask, smaskPromise);
     else
@@ -25604,7 +25608,7 @@ var Parser = (function ParserClosure() {
       }
       if (isCmd(this.buf1, '<<')) { // dictionary or stream
         this.shift();
-        var dict = new Dict();
+        var dict = new Dict(this.xref);
         while (!isCmd(this.buf1, '>>') && !isEOF(this.buf1)) {
           if (!isName(this.buf1))
             error('Dictionary key must be a name object');
@@ -26117,7 +26121,7 @@ var Lexer = (function LexerClosure() {
 
 var Linearization = (function LinearizationClosure() {
   function Linearization(stream) {
-    this.parser = new Parser(new Lexer(stream), false);
+    this.parser = new Parser(new Lexer(stream), false, null);
     var obj1 = this.parser.getObj();
     var obj2 = this.parser.getObj();
     var obj3 = this.parser.getObj();
@@ -26271,7 +26275,6 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
     this.extendEnd = extendEnd;
 
     var fnObj = dict.get('Function');
-    fnObj = xref.fetchIfRef(fnObj);
     if (isArray(fnObj))
       error('No support for array of functions');
     if (!isPDFFunction(fnObj))
