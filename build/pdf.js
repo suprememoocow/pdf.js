@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'dd31999';
+  PDFJS.build = '748f6a5';
 
   // Files are inserted below - see Makefile
   /* PDFJSSCRIPT_INCLUDE_ALL */
@@ -610,8 +610,15 @@ var PDFDocModel = (function PDFDocModelClosure() {
     },
     getDocumentInfo: function PDFDocModel_getDocumentInfo() {
       var info;
-      if (this.xref.trailer.has('Info'))
-        info = this.xref.trailer.get('Info');
+      if (this.xref.trailer.has('Info')) {
+        var infoDict = this.xref.trailer.get('Info');
+
+        info = {};
+        infoDict.forEach(function(key, value) {
+          info[key] = typeof value !== 'string' ? value :
+            stringToPDFString(value);
+        });
+      }
 
       return shadow(this, 'getDocumentInfo', info);
     },
@@ -2282,7 +2289,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
         }
         var pattern = new TilingPattern(IR, color, this.ctx, this.objs);
       } else if (IR[0] == 'RadialAxial' || IR[0] == 'Dummy') {
-        var pattern = Pattern.shadingFromIR(this.ctx, IR);
+        var pattern = Pattern.shadingFromIR(IR);
       } else {
         error('Unkown IR type ' + IR[0]);
       }
@@ -2366,7 +2373,8 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var ctx = this.ctx;
 
       this.save();
-      ctx.fillStyle = Pattern.shadingFromIR(ctx, patternIR);
+      var pattern = Pattern.shadingFromIR(patternIR);
+      ctx.fillStyle = pattern.getPattern(ctx);
 
       var inv = ctx.mozCurrentTransformInverse;
       if (inv) {
@@ -12577,6 +12585,17 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
     EX: 'endCompat'
   };
 
+  function splitCombinedOperations(operations) {
+    // Two operations can be combined together, trying to find which two
+    // operations were concatenated.
+    for (var i = operations.length - 1; i > 0; i--) {
+      var op1 = operations.substring(0, i), op2 = operations.substring(i);
+      if (op1 in OP_MAP && op2 in OP_MAP)
+        return [op1, op2]; // operations found
+    }
+    return null;
+  }
+
   PartialEvaluator.prototype = {
     getOperatorList: function PartialEvaluator_getOperatorList(stream,
                                                                resources,
@@ -12721,26 +12740,32 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
       var patterns = resources.get('Pattern') || new Dict();
       var parser = new Parser(new Lexer(stream), false, xref);
       var res = resources;
+      var hasNextObj = false, nextObj;
       var args = [], obj;
-      var getObjBt = function getObjBt() {
-        parser = this.oldParser;
-        return { name: 'BT' };
-      };
       var TILING_PATTERN = 1, SHADING_PATTERN = 2;
 
-      while (!isEOF(obj = parser.getObj())) {
+      while (true) {
+        if (hasNextObj) {
+          obj = nextObj;
+          hasNextObj = false;
+        } else {
+          obj = parser.getObj();
+          if (isEOF(obj))
+            break;
+        }
+
         if (isCmd(obj)) {
           var cmd = obj.cmd;
           var fn = OP_MAP[cmd];
           if (!fn) {
             // invalid content command, trying to recover
-            if (cmd.substr(-2) == 'BT') {
-              fn = OP_MAP[cmd.substr(0, cmd.length - 2)];
-              // feeding 'BT' on next interation
-              parser = {
-                getObj: getObjBt,
-                oldParser: parser
-              };
+            var cmds = splitCombinedOperations(cmd);
+            if (cmds) {
+              cmd = cmds[0];
+              fn = OP_MAP[cmd];
+              // feeding other command on the next interation
+              hasNextObj = true;
+              nextObj = Cmd.get(cmds[1]);
             }
           }
           assertWellFormed(fn, 'Unknown command "' + cmd + '"');
@@ -12771,8 +12796,8 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                 else if (typeNum == SHADING_PATTERN) {
                   var shading = dict.get('Shading');
                   var matrix = dict.get('Matrix');
-                  var pattern = Pattern.parseShading(shading, matrix, xref, res,
-                                                                  null /*ctx*/);
+                  var pattern = Pattern.parseShading(shading, matrix, xref,
+                                                     res);
                   args = pattern.getIR();
                 } else {
                   error('Unkown PatternType ' + typeNum);
@@ -12842,8 +12867,7 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
               if (!shading)
                 error('No shading object found');
 
-              var shadingFill = Pattern.parseShading(shading, null, xref, res,
-                                                      null);
+              var shadingFill = Pattern.parseShading(shading, null, xref, res);
               var patternIR = shadingFill.getIR();
               args = [patternIR];
               fn = 'shadingFill';
@@ -26218,12 +26242,12 @@ var Pattern = (function PatternClosure() {
     }
   };
 
-  Pattern.shadingFromIR = function Pattern_shadingFromIR(ctx, raw) {
-    return Shadings[raw[0]].fromIR(ctx, raw);
+  Pattern.shadingFromIR = function Pattern_shadingFromIR(raw) {
+    return Shadings[raw[0]].fromIR(raw);
   };
 
   Pattern.parseShading = function Pattern_parseShading(shading, matrix, xref,
-                                                      res, ctx) {
+                                                       res) {
 
     var dict = isStream(shading) ? shading.dict : shading;
     var type = dict.get('ShadingType');
@@ -26232,7 +26256,7 @@ var Pattern = (function PatternClosure() {
       case PatternType.AXIAL:
       case PatternType.RADIAL:
         // Both radial and axial shadings are handled by RadialAxial shading.
-        return new Shadings.RadialAxial(dict, matrix, xref, res, ctx);
+        return new Shadings.RadialAxial(dict, matrix, xref, res);
       default:
         return new Shadings.Dummy();
     }
@@ -26297,36 +26321,40 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
     this.colorStops = colorStops;
   }
 
-  RadialAxial.fromIR = function RadialAxial_fromIR(ctx, raw) {
+  RadialAxial.fromIR = function RadialAxial_fromIR(raw) {
     var type = raw[1];
     var colorStops = raw[2];
     var p0 = raw[3];
     var p1 = raw[4];
     var r0 = raw[5];
     var r1 = raw[6];
+    return {
+      type: 'Pattern',
+      getPattern: function(ctx) {
+        var curMatrix = ctx.mozCurrentTransform;
+        if (curMatrix) {
+          var userMatrix = ctx.mozCurrentTransformInverse;
 
-    var curMatrix = ctx.mozCurrentTransform;
-    if (curMatrix) {
-      var userMatrix = ctx.mozCurrentTransformInverse;
+          p0 = Util.applyTransform(p0, curMatrix);
+          p0 = Util.applyTransform(p0, userMatrix);
 
-      p0 = Util.applyTransform(p0, curMatrix);
-      p0 = Util.applyTransform(p0, userMatrix);
+          p1 = Util.applyTransform(p1, curMatrix);
+          p1 = Util.applyTransform(p1, userMatrix);
+        }
 
-      p1 = Util.applyTransform(p1, curMatrix);
-      p1 = Util.applyTransform(p1, userMatrix);
-    }
+        var grad;
+        if (type == PatternType.AXIAL)
+          grad = ctx.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
+        else if (type == PatternType.RADIAL)
+          grad = ctx.createRadialGradient(p0[0], p0[1], r0, p1[0], p1[1], r1);
 
-    var grad;
-    if (type == PatternType.AXIAL)
-      grad = ctx.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
-    else if (type == PatternType.RADIAL)
-      grad = ctx.createRadialGradient(p0[0], p0[1], r0, p1[0], p1[1], r1);
-
-    for (var i = 0, ii = colorStops.length; i < ii; ++i) {
-      var c = colorStops[i];
-      grad.addColorStop(c[0], c[1]);
-    }
-    return grad;
+        for (var i = 0, ii = colorStops.length; i < ii; ++i) {
+          var c = colorStops[i];
+          grad.addColorStop(c[0], c[1]);
+        }
+        return grad;
+      }
+    };
   };
 
   RadialAxial.prototype = {
