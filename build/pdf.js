@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '2d08ae9';
+  PDFJS.build = 'e014b62';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -26079,8 +26079,11 @@ var Parser = (function ParserClosure() {
       if (name == 'CCITTFaxDecode' || name == 'CCF') {
         return new CCITTFaxStream(stream, params);
       }
-      if (name == 'RunLengthDecode') {
+      if (name == 'RunLengthDecode' || name == 'RL') {
         return new RunLengthStream(stream);
+      }
+      if (name == 'JBIG2Decode') {
+        error('JBIG2 image format is not currently supprted.');
       }
       warn('filter "' + name + '" not supported yet');
       return stream;
