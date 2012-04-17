@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'a25c4f1';
+  PDFJS.build = '9b0224b';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -144,20 +144,18 @@ var Page = (function PageClosure() {
     },
 
     getOperatorList: function Page_getOperatorList(handler, dependency) {
-      if (this.operatorList) {
-        // content was compiled
-        return this.operatorList;
-      }
-
       var xref = this.xref;
       var content = this.content;
       var resources = this.resources;
       if (isArray(content)) {
         // fetching items
+        var streams = [];
         var i, n = content.length;
         for (i = 0; i < n; ++i)
-          content[i] = xref.fetchIfRef(content[i]);
-        content = new StreamsSequenceStream(content);
+          streams.push(xref.fetchIfRef(content[i]));
+        content = new StreamsSequenceStream(streams);
+      } else if (isStream(content)) {
+        content.reset();
       } else if (!content) {
         // replacing non-existent page content with empty one
         content = new Stream(new Uint8Array(0));
@@ -166,8 +164,7 @@ var Page = (function PageClosure() {
       var pe = this.pe = new PartialEvaluator(
                                 xref, handler, 'p' + this.pageNumber + '_');
 
-      this.operatorList = pe.getOperatorList(content, resources, dependency);
-      return this.operatorList;
+      return pe.getOperatorList(content, resources, dependency);
     },
 
     getLinks: function Page_getLinks() {
@@ -1185,6 +1182,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     this.stats = new StatTimer();
     this.stats.enabled = !!globalScope.PDFJS.enableStats;
     this.objs = transport.objs;
+    this.renderInProgress = false;
   }
   PDFPageProxy.prototype = {
     /**
@@ -1250,6 +1248,8 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * rendering.
      */
     render: function(params) {
+      this.renderInProgress = true;
+
       var promise = new Promise();
       var stats = this.stats;
       stats.time('Overall');
@@ -1257,6 +1257,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
       // requested before. Make the request and create the promise.
       if (!this.displayReadyPromise) {
         this.displayReadyPromise = new Promise();
+        this.destroyed = false;
 
         this.stats.time('Page Request');
         this.transport.messageHandler.send('RenderPageRequest', {
@@ -1264,7 +1265,14 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
         });
       }
 
+      var self = this;
       function complete(error) {
+        self.renderInProgress = false;
+        if (self.destroyed) {
+          delete self.operatorList;
+          delete self.displayReadyPromise;
+        }
+
         if (error)
           promise.reject(error);
         else
@@ -1274,6 +1282,11 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
       // Once the operatorList and fonts are loaded, do the actual rendering.
       this.displayReadyPromise.then(
         function pageDisplayReadyPromise() {
+          if (self.destroyed) {
+            complete();
+            return;
+          }
+
           var gfx = new CanvasGraphics(params.canvasContext,
             this.objs, params.textLayer);
           try {
@@ -1357,7 +1370,6 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
           gfx.executeOperatorList(operatorList, startIdx, next, stepper);
         if (startIdx == length) {
           gfx.endDrawing();
-          delete this.operatorList;
           stats.timeEnd('Rendering');
           stats.timeEnd('Overall');
           if (callback) callback();
@@ -1385,6 +1397,17 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
       };
       promise.resolve(operationList);
       return promise;
+    },
+    /**
+     * Destroys resources allocated by the page.
+     */
+    destroy: function() {
+      this.destroyed = true;
+
+      if (!this.renderInProgress) {
+        delete this.operatorList;
+        delete this.displayReadyPromise;
+      }
     }
   };
   return PDFPageProxy;
@@ -1515,6 +1538,8 @@ var WorkerTransport = (function WorkerTransportClosure() {
       messageHandler.on('obj', function transportObj(data) {
         var id = data[0];
         var type = data[1];
+        if (this.objs.hasData(id))
+          return;
 
         switch (type) {
           case 'JpegStream':
@@ -12873,13 +12898,14 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
 
         font = xref.fetchIfRef(font) || fontRes.get(fontName);
         assertWellFormed(isDict(font));
+        ++self.objIdCounter;
         if (!font.translated) {
           font.translated = self.translateFont(font, xref, resources,
                                                dependency);
           if (font.translated) {
             // keep track of each font we translated so the caller can
             // load them asynchronously before calling display on a page
-            loadedName = 'font_' + uniquePrefix + (++self.objIdCounter);
+            loadedName = 'font_' + uniquePrefix + self.objIdCounter;
             font.translated.properties.loadedName = loadedName;
             font.loadedName = loadedName;
 
