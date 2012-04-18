@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'cec7a92';
+  PDFJS.build = 'cf19de8';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -4537,7 +4537,10 @@ var PostScriptLexer = (function PostScriptLexerClosure() {
       // operator
       var str = ch.toLowerCase();
       while (true) {
-        ch = stream.lookChar().toLowerCase();
+        ch = stream.lookChar();
+        if (ch === null)
+          break;
+        ch = ch.toLowerCase();
         if (ch >= 'a' && ch <= 'z')
           str += ch;
         else
