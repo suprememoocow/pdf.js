@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '0cb6d62';
+  PDFJS.build = 'be584d5';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -200,6 +200,7 @@ var Page = (function PageClosure() {
           case 'http':
           case 'https':
           case 'ftp':
+          case 'mailto':
             return true;
           default:
             return false;
