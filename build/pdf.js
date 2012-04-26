@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'be584d5';
+  PDFJS.build = 'ba9c828';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -3253,9 +3253,8 @@ var XRef = (function XRefClosure() {
         }
       }
 
-      // Sanity check: as per spec, first object must have these properties
-      if (this.entries[0] &&
-          !(this.entries[0].gen === 65535 && this.entries[0].free))
+      // Sanity check: as per spec, first object must be free
+      if (this.entries[0] && !this.entries[0].free)
         error('Invalid XRef table: unexpected first object');
 
       // Sanity check
@@ -3414,7 +3413,7 @@ var XRef = (function XRefClosure() {
       }
       // reading XRef streams
       for (var i = 0, ii = xrefStms.length; i < ii; ++i) {
-          this.readXRef(xrefStms[i]);
+          this.readXRef(xrefStms[i], true);
       }
       // finding main trailer
       var dict;
@@ -3437,7 +3436,7 @@ var XRef = (function XRefClosure() {
       // nothing helps
       error('Invalid PDF structure');
     },
-    readXRef: function XRef_readXRef(startXRef) {
+    readXRef: function XRef_readXRef(startXRef, recoveryMode) {
       var stream = this.stream;
       stream.pos = startXRef;
 
@@ -3470,22 +3469,27 @@ var XRef = (function XRefClosure() {
             error('Invalid XRef stream');
           }
           dict = this.readXRefStream(obj);
+          if (!dict)
+            error('Failed to read XRef stream');
         }
 
         // Recursively get previous dictionary, if any
         obj = dict.get('Prev');
         if (isInt(obj))
-          this.readXRef(obj);
+          this.readXRef(obj, recoveryMode);
         else if (isRef(obj)) {
           // The spec says Prev must not be a reference, i.e. "/Prev NNN"
           // This is a fallback for non-compliant PDFs, i.e. "/Prev NNN 0 R"
-          this.readXRef(obj.num);
+          this.readXRef(obj.num, recoveryMode);
         }
 
         return dict;
       } catch (e) {
         log('(while reading XRef): ' + e);
       }
+
+      if (recoveryMode)
+        return;
 
       warn('Indexing all PDF objects');
       return this.indexObjects();
