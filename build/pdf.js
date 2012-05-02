@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '7712099';
+  PDFJS.build = '3c80dec';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -579,7 +579,7 @@ var Util = PDFJS.Util = (function UtilClosure() {
     return [xt, yt];
   };
 
-  Util.applyInverseTransform = function Util_applyTransform(p, m) {
+  Util.applyInverseTransform = function Util_applyInverseTransform(p, m) {
     var d = m[0] * m[3] - m[1] * m[2];
     var xt = (p[0] * m[3] - p[1] * m[2] + m[2] * m[5] - m[4] * m[3]) / d;
     var yt = (-p[0] * m[1] + p[1] * m[0] + m[4] * m[1] - m[5] * m[0]) / d;
@@ -1096,7 +1096,7 @@ PDFJS.getDocument = function getDocument(source) {
  * Proxy to a PDFDocument in the worker thread. Also, contains commonly used
  * properties that can be read synchronously.
  */
-var PDFDocumentProxy = (function() {
+var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
   function PDFDocumentProxy(pdfInfo, transport) {
     this.pdfInfo = pdfInfo;
     this.transport = transport;
@@ -1120,14 +1120,14 @@ var PDFDocumentProxy = (function() {
      * @return {Promise} A promise that is resolved with a {PDFPageProxy}
      * object.
      */
-    getPage: function(number) {
+    getPage: function PDFDocumentProxy_getPage(number) {
       return this.transport.getPage(number);
     },
     /**
      * @return {Promise} A promise that is resolved with a lookup table for
      * mapping named destinations to reference numbers.
      */
-    getDestinations: function() {
+    getDestinations: function PDFDocumentProxy_getDestinations() {
       var promise = new PDFJS.Promise();
       var destinations = this.pdfInfo.destinations;
       promise.resolve(destinations);
@@ -1148,7 +1148,7 @@ var PDFDocumentProxy = (function() {
      *  ...
      * ].
      */
-    getOutline: function() {
+    getOutline: function PDFDocumentProxy_getOutline() {
       var promise = new PDFJS.Promise();
       var outline = this.pdfInfo.outline;
       promise.resolve(outline);
@@ -1160,7 +1160,7 @@ var PDFDocumentProxy = (function() {
      * available in the information dictionary and similarly metadata is a
      * {Metadata} object with information from the metadata section of the PDF.
      */
-    getMetadata: function() {
+    getMetadata: function PDFDocumentProxy_getMetadata() {
       var promise = new PDFJS.Promise();
       var info = this.pdfInfo.info;
       var metadata = this.pdfInfo.metadata;
@@ -1170,7 +1170,7 @@ var PDFDocumentProxy = (function() {
       });
       return promise;
     },
-    destroy: function() {
+    destroy: function PDFDocumentProxy_destroy() {
       this.transport.destroy();
     }
   };
@@ -1220,7 +1220,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * @return {PageViewport} Contains 'width' and 'height' properties along
      * with transforms required for rendering.
      */
-    getViewport: function(scale, rotate) {
+    getViewport: function PDFPageProxy_getViewport(scale, rotate) {
       if (arguments.length < 2)
         rotate = this.rotate;
       return new PDFJS.PageViewport(this.view, scale, rotate, 0, 0);
@@ -1229,7 +1229,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * @return {Promise} A promise that is resolved with an {array} of the
      * annotation objects.
      */
-    getAnnotations: function() {
+    getAnnotations: function PDFPageProxy_getAnnotations() {
       if (this.annotationsPromise)
         return this.annotationsPromise;
 
@@ -1249,7 +1249,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * @return {Promise} A promise that is resolved when the page finishes
      * rendering.
      */
-    render: function(params) {
+    render: function PDFPageProxy_render(params) {
       this.renderInProgress = true;
 
       var promise = new Promise();
@@ -1308,8 +1308,8 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
      * For internal use only.
      */
     startRenderingFromOperatorList:
-      function PDFPageWrapper_startRenderingFromOperatorList(operatorList,
-                                                             fonts) {
+      function PDFPageProxy_startRenderingFromOperatorList(operatorList,
+                                                           fonts) {
       var self = this;
       this.operatorList = operatorList;
 
@@ -1330,7 +1330,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     /**
      * For internal use only.
      */
-    ensureFonts: function PDFPageWrapper_ensureFonts(fonts, callback) {
+    ensureFonts: function PDFPageProxy_ensureFonts(fonts, callback) {
       this.stats.time('Font Loading');
       // Convert the font names to the corresponding font obj.
       for (var i = 0, ii = fonts.length; i < ii; i++) {
@@ -1350,7 +1350,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     /**
      * For internal use only.
      */
-    display: function PDFPageWrapper_display(gfx, viewport, callback) {
+    display: function PDFPageProxy_display(gfx, viewport, callback) {
       var stats = this.stats;
       stats.time('Rendering');
 
@@ -1382,7 +1382,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     /**
      * Stub for future feature.
      */
-    getTextContent: function() {
+    getTextContent: function PDFPageProxy_getTextContent() {
       var promise = new PDFJS.Promise();
       var textContent = 'page text'; // not implemented
       promise.resolve(textContent);
@@ -1391,7 +1391,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     /**
      * Stub for future feature.
      */
-    getOperationList: function() {
+    getOperationList: function PDFPageProxy_getOperationList() {
       var promise = new PDFJS.Promise();
       var operationList = { // not implemented
         dependencyFontsID: null,
@@ -1403,7 +1403,7 @@ var PDFPageProxy = (function PDFPageProxyClosure() {
     /**
      * Destroys resources allocated by the page.
      */
-    destroy: function() {
+    destroy: function PDFPageProxy_destroy() {
       this.destroyed = true;
 
       if (!this.renderInProgress) {
@@ -2928,7 +2928,7 @@ var Dict = (function DictClosure() {
     // Map should only be used internally, use functions below to access.
     var map = Object.create(null);
 
-    this.assignXref = function Dict_assingXref(newXref) {
+    this.assignXref = function Dict_assignXref(newXref) {
       xref = newXref;
     };
 
@@ -26643,7 +26643,7 @@ Shadings.RadialAxial = (function RadialAxialClosure() {
     var r1 = raw[6];
     return {
       type: 'Pattern',
-      getPattern: function(ctx) {
+      getPattern: function RadialAxial_getPattern(ctx) {
         var curMatrix = ctx.mozCurrentTransform;
         if (curMatrix) {
           var userMatrix = ctx.mozCurrentTransformInverse;
