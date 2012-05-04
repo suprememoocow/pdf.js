@@ -5,8 +5,64 @@
 
   <Description about="urn:mozilla:install-manifest">
     <em:id>uriloader@pdf.js</em:id>
+    <em:localized>
+      <Description>
+        <em:locale>ar</em:locale>
+        <em:name>عارض PDF</em:name>
+        <em:description>يستخدم HTML5 لعرض ملفات PDF مباشره من خلال Firefox.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
+        <em:locale>da-DK</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Benytter HTML5 til at vise PDF-filer direkte i Firefox.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
+        <em:locale>de-DE</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Nutzt HTML5 um PDFs direkt in Firefox anzuzeigen.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
+        <em:locale>en-US</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Uses HTML5 to display PDF files directly in Firefox.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
+        <em:locale>it</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Usa HTML5 per visualizzare i file PDF direttamente in Firefox.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
+        <em:locale>pt-BR</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Aprensenta PDFs no browser usando a tecnologia HTML5.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
+        <em:locale>ru</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Показывает файлы PDF непосредственно в Firefox используя HTML5.</em:description>
+      </Description>
+    </em:localized>
+
     <em:name>PDF Viewer</em:name>
-    <em:version>0.3.135</em:version>
+    <em:version>0.3.175</em:version>
     <em:targetApplication>
       <Description>
        <em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>
