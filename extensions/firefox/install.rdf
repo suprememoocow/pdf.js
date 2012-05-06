@@ -15,7 +15,7 @@
 
     <em:localized>
       <Description>
-        <em:locale>da-DK</em:locale>
+        <em:locale>da</em:locale>
         <em:name>PDF Viewer</em:name>
         <em:description>Benytter HTML5 til at vise PDF-filer direkte i Firefox.</em:description>
       </Description>
@@ -62,7 +62,7 @@
     </em:localized>
 
     <em:name>PDF Viewer</em:name>
-    <em:version>0.3.175</em:version>
+    <em:version>0.3.177</em:version>
     <em:targetApplication>
       <Description>
        <em:id>{ec8030f7-c20a-464f-9b0e-13a3a9e97384}</em:id>
