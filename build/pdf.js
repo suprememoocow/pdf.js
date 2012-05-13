@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '5283289';
+  PDFJS.build = '50c74a4';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -43,7 +43,19 @@ function getPdf(arg, callback) {
     params = { url: arg };
 
   var xhr = new XMLHttpRequest();
+
   xhr.open('GET', params.url);
+
+  var headers = params.headers;
+  if (headers) {
+    for (var property in headers) {
+      if (typeof headers[property] === 'undefined')
+        continue;
+
+      xhr.setRequestHeader(property, params.headers[property]);
+    }
+  }
+
   xhr.mozResponseType = xhr.responseType = 'arraybuffer';
   var protocol = params.url.indexOf(':') < 0 ? window.location.protocol :
     params.url.substring(0, params.url.indexOf(':') + 1);
@@ -1059,10 +1071,12 @@ var StatTimer = (function StatTimerClosure() {
  * e.g. No cross domain requests without CORS.
  *
  * @param {string|TypedAray} source Either a url to a PDF is located or a
- * typed array already populated with data.
+ * typed array (Uint8Array) already populated with data.
+ * @param {Object} headers An object containing the http headers like this:
+ * { Authorization: "BASIC XXX" }.
  * @return {Promise} A promise that is resolved with {PDFDocumentProxy} object.
  */
-PDFJS.getDocument = function getDocument(source) {
+PDFJS.getDocument = function getDocument(source, headers) {
   var promise = new PDFJS.Promise();
   var transport = new WorkerTransport(promise);
   if (typeof source === 'string') {
@@ -1080,7 +1094,8 @@ PDFJS.getDocument = function getDocument(source) {
         error: function getPDFError(e) {
           promise.reject('Unexpected server response of ' +
             e.target.status + '.');
-        }
+        },
+        headers: headers
       },
       function getPDFLoad(data) {
         transport.sendData(data);
