@@ -39,6 +39,13 @@
 
     <em:localized>
       <Description>
+        <em:locale>fr</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Utilise HTML5 pour afficher les documents PDF directement dans Firefox.</em:description>
+      </Description>
+    </em:localized>
+    <em:localized>
+      <Description>
         <em:locale>it</em:locale>
         <em:name>PDF Viewer</em:name>
         <em:description>Usa HTML5 per visualizzare i file PDF direttamente in Firefox.</em:description>
@@ -94,7 +101,7 @@
     </em:localized>
 
     <em:name>PDF Viewer</em:name>
-    <em:version>0.3.243</em:version>
+    <em:version>0.3.246</em:version>
 
     <!-- Firefox -->
     <em:targetApplication>
