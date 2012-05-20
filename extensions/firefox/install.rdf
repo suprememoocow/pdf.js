@@ -54,6 +54,14 @@
 
     <em:localized>
       <Description>
+        <em:locale>ja</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>HTML5を使用して、Firefoxで直接PDFファイルを表示します。</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
         <em:locale>pl</em:locale>
         <em:name>Przeglądarka PDF</em:name>
         <em:description>Używa HTML5 do wyświetlania plików PDF bezpośrednio w Firefoksie.</em:description>
@@ -109,7 +117,7 @@
     </em:localized>
 
     <em:name>PDF Viewer</em:name>
-    <em:version>0.3.250</em:version>
+    <em:version>0.3.252</em:version>
 
     <!-- Firefox -->
     <em:targetApplication>
