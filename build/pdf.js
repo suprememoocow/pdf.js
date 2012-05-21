@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'db31a3e';
+  PDFJS.build = '1e41f65';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -18029,9 +18029,9 @@ var CFFPrivateDict = (function CFFPrivateDictClosure() {
     [[12, 17], 'LanguageGroup', 'num', 0],
     [[12, 18], 'ExpansionFactor', 'num', 0.06],
     [[12, 19], 'initialRandomSeed', 'num', 0],
-    [19, 'Subrs', 'offset', null],
     [20, 'defaultWidthX', 'num', 0],
-    [21, 'nominalWidthX', 'num', 0]
+    [21, 'nominalWidthX', 'num', 0],
+    [19, 'Subrs', 'offset', null]
   ];
   var tables = null;
   function CFFPrivateDict(strings) {
