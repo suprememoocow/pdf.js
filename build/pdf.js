@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '1e41f65';
+  PDFJS.build = 'a9136d9';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -17285,7 +17285,7 @@ var CFFFont = (function CFFFontClosure() {
     this.properties = properties;
 
     var parser = new CFFParser(file, properties);
-    var cff = parser.parse();
+    var cff = parser.parse(true);
     var compiler = new CFFCompiler(cff);
     this.readExtra(cff);
     try {
@@ -17376,7 +17376,7 @@ var CFFParser = (function CFFParserClosure() {
     this.properties = properties;
   }
   CFFParser.prototype = {
-    parse: function CFFParser_parse() {
+    parse: function CFFParser_parse(normalizeCIDData) {
       var properties = this.properties;
       var cff = new CFF();
       this.cff = cff;
@@ -17430,6 +17430,21 @@ var CFFParser = (function CFFParserClosure() {
       }
       cff.charset = charset;
       cff.encoding = encoding;
+
+      if (!cff.isCIDFont || !normalizeCIDData)
+        return cff;
+
+      // DirectWrite does not like CID fonts data. Trying to convert/flatten
+      // the font data and remove CID properties.
+      if (cff.fdArray.length !== 1)
+        error('Unable to normalize CID font in CFF data');
+
+      var fontDict = cff.fdArray[0];
+      fontDict.setByKey(17, topDict.getByName('CharStrings'));
+      cff.topDict = fontDict;
+      cff.isCIDFont = false;
+      delete cff.fdArray;
+      delete cff.fdSelect;
 
       return cff;
     },
