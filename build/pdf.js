@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '60a1074';
+  PDFJS.build = '139200e';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -15746,9 +15746,9 @@ var Font = (function FontClosure() {
             this.isSymbolicFont = false;
         }
 
-        // heuristics: if removed more than 2 glyphs encoding WinAnsiEncoding
-        // does not set properly
-        if (glyphsRemoved > 2) {
+        // heuristics: if removed more than 10 glyphs encoding WinAnsiEncoding
+        // does not set properly (broken PDFs have about 100 removed glyphs)
+        if (glyphsRemoved > 10) {
           warn('Switching TrueType encoding to MacRomanEncoding for ' +
                this.name + ' font');
           encoding = Encodings.MacRomanEncoding;
