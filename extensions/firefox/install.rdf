@@ -15,6 +15,14 @@
 
     <em:localized>
       <Description>
+        <em:locale>cs</em:locale>
+        <em:name>PDF Viewer</em:name>
+        <em:description>Používá HTML5 pro zobrazení PDF souborů přímo ve Firefoxu.</em:description>
+      </Description>
+    </em:localized>
+
+    <em:localized>
+      <Description>
         <em:locale>da</em:locale>
         <em:name>PDF Viewer</em:name>
         <em:description>Benytter HTML5 til at vise PDF-filer direkte i Firefox.</em:description>
@@ -125,7 +133,7 @@
     </em:localized>
 
     <em:name>PDF Viewer</em:name>
-    <em:version>0.3.269</em:version>
+    <em:version>0.3.271</em:version>
 
     <!-- Firefox -->
     <em:targetApplication>
