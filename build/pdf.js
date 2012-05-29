@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f991af0';
+  PDFJS.build = '2ba7cbc';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -825,6 +825,10 @@ function stringToPDFString(str) {
     }
   }
   return str2;
+}
+
+function stringToUTF8String(str) {
+  return decodeURIComponent(escape(str));
 }
 
 function isBool(v) {
@@ -3120,7 +3124,14 @@ var Catalog = (function CatalogClosure() {
 
   Catalog.prototype = {
     get metadata() {
-      var stream = this.catDict.get('Metadata');
+      var streamRef = this.catDict.getRaw('Metadata');
+      if (!isRef(streamRef))
+        return shadow(this, 'metadata', null);
+
+      var encryptMetadata = !this.xref.encrypt ? false :
+        this.xref.encrypt.encryptMetadata;
+
+      var stream = this.xref.fetch(streamRef, !encryptMetadata);
       var metadata;
       if (stream && isDict(stream.dict)) {
         var type = stream.dict.get('Type');
@@ -3128,7 +3139,16 @@ var Catalog = (function CatalogClosure() {
 
         if (isName(type) && isName(subtype) &&
             type.name === 'Metadata' && subtype.name === 'XML') {
-          metadata = stringToPDFString(bytesToString(stream.getBytes()));
+          // XXX: This should examine the charset the XML document defines,
+          // however since there are currently no real means to decode
+          // arbitrary charsets, let's just hope that the author of the PDF
+          // was reasonable enough to stick with the XML default charset,
+          // which is UTF-8.
+          try {
+            metadata = stringToUTF8String(bytesToString(stream.getBytes()));
+          } catch (e) {
+            info('Skipping invalid metadata.');
+          }
         }
       }
 
@@ -12801,8 +12821,10 @@ var CipherTransformFactory = (function CipherTransformFactoryClosure() {
     var userPassword = stringToBytes(dict.get('U'));
     var flags = dict.get('P');
     var revision = dict.get('R');
-    var encryptMetadata =
+    var encryptMetadata = algorithm == 4 &&  // meaningful when V is 4
       dict.get('EncryptMetadata') !== false; // makes true as default value
+    this.encryptMetadata = encryptMetadata;
+
     var fileIdBytes = stringToBytes(fileId);
     var passwordBytes;
     if (password)
