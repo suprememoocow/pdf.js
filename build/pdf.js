@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '42a9fb4';
+  PDFJS.build = 'f991af0';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -19,7 +19,7 @@ var globalScope = (typeof window === 'undefined') ? this : window;
 
 var isWorker = (typeof window == 'undefined');
 
-var ERRORS = 0, WARNINGS = 1, TODOS = 5;
+var ERRORS = 0, WARNINGS = 1, INFOS = 5;
 var verbosity = WARNINGS;
 
 // The global PDFJS object exposes the API
@@ -498,6 +498,8 @@ var PDFDocument = (function PDFDocumentClosure() {
 
 'use strict';
 
+// Use only for debugging purposes. This should not be used in any code that is
+// in mozilla master.
 function log(msg) {
   if (console && console.log)
     console.log(msg);
@@ -505,9 +507,36 @@ function log(msg) {
     print(msg);
 }
 
+// A notice for devs that will not trigger the fallback UI.  These are good
+// for things that are helpful to devs, such as warning that Workers were
+// disabled, which is important to devs but not end users.
+function info(msg) {
+  if (verbosity >= INFOS) {
+    log('Info: ' + msg);
+    PDFJS.LogManager.notify('info', msg);
+  }
+}
+
+// Non-fatal warnings that should trigger the fallback UI.
 function warn(msg) {
-  if (verbosity >= WARNINGS)
+  if (verbosity >= WARNINGS) {
     log('Warning: ' + msg);
+    PDFJS.LogManager.notify('warn', msg);
+  }
+}
+
+// Fatal errors that should trigger the fallback UI and halt execution by
+// throwing an exception.
+function error(msg) {
+  log('Error: ' + msg);
+  log(backtrace());
+  PDFJS.LogManager.notify('error', msg);
+  throw new Error(msg);
+}
+
+// Missing features that should trigger the fallback UI.
+function TODO(what) {
+  warn('TODO: ' + what);
 }
 
 function backtrace() {
@@ -516,21 +545,6 @@ function backtrace() {
   } catch (e) {
     return e.stack ? e.stack.split('\n').slice(2).join('\n') : '';
   }
-}
-
-function error(msg) {
-  log('Error: ' + msg);
-  log(backtrace());
-  throw new Error(msg);
-}
-
-function TODO(what) {
-  if (verbosity >= TODOS)
-    log('TODO: ' + what);
-}
-
-function malformed(msg) {
-  error('Malformed PDF: ' + msg);
 }
 
 function assert(cond, msg) {
@@ -542,8 +556,24 @@ function assert(cond, msg) {
 // behavior is undefined.
 function assertWellFormed(cond, msg) {
   if (!cond)
-    malformed(msg);
+    error(msg);
 }
+
+var LogManager = PDFJS.LogManager = (function LogManagerClosure() {
+  var loggers = [];
+  return {
+    addLogger: function logManager_addLogger(logger) {
+      loggers.push(logger);
+    },
+    notify: function(type, message) {
+      for (var i = 0, ii = loggers.length; i < ii; i++) {
+        var logger = loggers[i];
+        if (logger[type])
+          logger[type](message);
+      }
+    }
+  };
+})();
 
 function shadow(obj, prop, value) {
   Object.defineProperty(obj, prop, { value: value,
@@ -1529,7 +1559,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
         messageHandler.send('test', testObj);
         return;
       } catch (e) {
-        warn('The worker has been disabled.');
+        info('The worker has been disabled.');
       }
     }
     // Either workers are disabled, not supported or have thrown an exception.
@@ -2051,10 +2081,13 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.ctx.webkitLineDashOffset = dashPhase;
     },
     setRenderingIntent: function CanvasGraphics_setRenderingIntent(intent) {
-      TODO('set rendering intent: ' + intent);
+      // Maybe if we one day fully support color spaces this will be important
+      // for now we can ignore.
+      // TODO set rendering intent?
     },
     setFlatness: function CanvasGraphics_setFlatness(flatness) {
-      TODO('set flatness: ' + flatness);
+      // There's no way to control this with canvas, but we can safely ignore.
+      // TODO set flatness?
     },
     setGState: function CanvasGraphics_setGState(states) {
       for (var i = 0, ii = states.length; i < ii; i++) {
@@ -2549,7 +2582,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
             text.length += shownText.length;
           }
         } else {
-          malformed('TJ array element ' + e + ' is not string or num');
+          error('TJ array element ' + e + ' is not string or num');
         }
       }
 
@@ -12140,12 +12173,12 @@ var LabCS = (function LabCSClosure() {
       error('Invalid WhitePoint components, no fallback available');
 
     if (this.XB < 0 || this.YB < 0 || this.ZB < 0) {
-      warn('Invalid BlackPoint, falling back to default');
+      info('Invalid BlackPoint, falling back to default');
       this.XB = this.YB = this.ZB = 0;
     }
 
     if (this.amin > this.amax || this.bmin > this.bmax) {
-      warn('Invalid Range, falling back to defaults');
+      info('Invalid Range, falling back to defaults');
       this.amin = -100;
       this.amax = 100;
       this.bmin = -100;
@@ -13289,6 +13322,18 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                         value[1]
                       ]);
                       break;
+                    case 'BM':
+                      // We support the default so don't trigger the TODO.
+                      if (!isName(value) || value.name != 'Normal')
+                        TODO('graphic state operator ' + key);
+                      break;
+                    case 'SMask':
+                      // We support the default so don't trigger the TODO.
+                      if (!isName(value) || value.name != 'None')
+                        TODO('graphic state operator ' + key);
+                      break;
+                    // Only generate info log messages for the following since
+                    // they are unlikey to have a big impact on the rendering.
                     case 'OP':
                     case 'op':
                     case 'OPM':
@@ -13301,14 +13346,13 @@ var PartialEvaluator = (function PartialEvaluatorClosure() {
                     case 'HT':
                     case 'SM':
                     case 'SA':
-                    case 'BM':
-                    case 'SMask':
                     case 'AIS':
                     case 'TK':
-                      TODO('graphic state operator ' + key);
+                      // TODO implement these operators.
+                      info('graphic state operator ' + key);
                       break;
                     default:
-                      warn('Unknown graphic state operator ' + key);
+                      info('Unknown graphic state operator ' + key);
                       break;
                   }
                 }
@@ -17419,7 +17463,7 @@ var CFFParser = (function CFFParserClosure() {
         ++offset;
 
       if (offset != 0) {
-        warn('cff data is shifted');
+        info('cff data is shifted');
         bytes = bytes.subarray(offset);
         this.bytes = bytes;
       }
@@ -28655,7 +28699,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
 
     if (a1 > codingLine[codingPos]) {
       if (a1 > this.columns) {
-        warn('row is wrong length');
+        info('row is wrong length');
         this.err = true;
         a1 = this.columns;
       }
@@ -28675,7 +28719,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
 
     if (a1 > codingLine[codingPos]) {
       if (a1 > this.columns) {
-        warn('row is wrong length');
+        info('row is wrong length');
         this.err = true;
         a1 = this.columns;
       }
@@ -28685,7 +28729,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
       codingLine[codingPos] = a1;
     } else if (a1 < codingLine[codingPos]) {
       if (a1 < 0) {
-        warn('invalid code');
+        info('invalid code');
         this.err = true;
         a1 = 0;
       }
@@ -28847,7 +28891,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
               this.eof = true;
               break;
             default:
-              warn('bad 2d code');
+              info('bad 2d code');
               this.addPixels(columns, 0);
               this.err = true;
           }
@@ -28910,7 +28954,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
             for (var i = 0; i < 4; ++i) {
               code1 = this.lookBits(12);
               if (code1 != 1)
-                warn('bad rtc code: ' + code1);
+                info('bad rtc code: ' + code1);
               this.eatBits(12);
               if (this.encoding > 0) {
                 this.lookBits(1);
@@ -29033,7 +29077,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
       if (result[0] && result[2])
         return result[1];
     }
-    warn('Bad two dim code');
+    info('Bad two dim code');
     return EOF;
   };
 
@@ -29066,7 +29110,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
       if (result[0])
         return result[1];
     }
-    warn('bad white code');
+    info('bad white code');
     this.eatBits(1);
     return 1;
   };
@@ -29103,7 +29147,7 @@ var CCITTFaxStream = (function CCITTFaxStreamClosure() {
       if (result[0])
         return result[1];
     }
-    warn('bad black code');
+    info('bad black code');
     this.eatBits(1);
     return 1;
   };
@@ -29274,10 +29318,13 @@ function MessageHandler(name, comObj) {
   var ah = this.actionHandler = {};
 
   ah['console_log'] = [function ahConsoleLog(data) {
-      console.log.apply(console, data);
+    console.log.apply(console, data);
   }];
   ah['console_error'] = [function ahConsoleError(data) {
-      console.error.apply(console, data);
+    console.error.apply(console, data);
+  }];
+  ah['_warn'] = [function ah_Warn(data) {
+    warn(data);
   }];
 
   comObj.onmessage = function messageHandlerComObjOnMessage(event) {
@@ -29506,6 +29553,17 @@ var workerConsole = {
 // Worker thread?
 if (typeof window === 'undefined') {
   globalScope.console = workerConsole;
+
+  // Add a logger so we can pass warnings on to the main thread, errors will
+  // throw an exception which will be forwarded on automatically.
+  PDFJS.LogManager.addLogger({
+    warn: function(msg) {
+      postMessage({
+        action: '_warn',
+        data: msg
+      });
+    }
+  });
 
   var handler = new MessageHandler('worker_processor', this);
   WorkerMessageHandler.setup(handler);
