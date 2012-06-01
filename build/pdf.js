@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '8ae9c7d';
+  PDFJS.build = 'b47e1c8';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -1305,6 +1305,15 @@ var PDFDocumentProxy = (function PDFDocumentProxyClosure() {
       promise.resolve(this.pdfInfo.encrypted);
       return promise;
     },
+    /**
+     * @return {Promise} A promise that is resolved with a TypedArray that has
+     * the raw data from the PDF.
+     */
+    getData: function PDFDocumentProxy_getData() {
+      var promise = new PDFJS.Promise();
+      this.transport.getData(promise);
+      return promise;
+    },
     destroy: function PDFDocumentProxy_destroy() {
       this.transport.destroy();
     }
@@ -1768,6 +1777,12 @@ var WorkerTransport = (function WorkerTransportClosure() {
 
     sendData: function WorkerTransport_sendData(data, params) {
       this.messageHandler.send('GetDocRequest', {data: data, params: params});
+    },
+
+    getData: function WorkerTransport_sendData(promise) {
+      this.messageHandler.send('GetData', null, function(data) {
+        promise.resolve(data);
+      });
     },
 
     getPage: function WorkerTransport_getPage(pageNumber, promise) {
@@ -30319,6 +30334,10 @@ var WorkerMessageHandler = {
         view: pdfPage.view
       };
       handler.send('GetPage', {pageInfo: page});
+    });
+
+    handler.on('GetData', function wphSetupGetData(data, promise) {
+      promise.resolve(pdfModel.stream.bytes);
     });
 
     handler.on('GetAnnotationsRequest', function wphSetupGetAnnotations(data) {
