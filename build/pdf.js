@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '6a751a9';
+  PDFJS.build = '8b0ec4b';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -17128,9 +17128,13 @@ var Font = (function FontClosure() {
                  window.btoa(data) + ');');
       var rule = "@font-face { font-family:'" + fontName + "';src:" + url + '}';
 
-      var styleElement = document.createElement('style');
-      document.documentElement.getElementsByTagName('head')[0].appendChild(
-        styleElement);
+      var styleElement = document.getElementById('PDFJS_FONT_STYLE_TAG');
+      if (!styleElement) {
+          styleElement = document.createElement('style');
+          styleElement.id = 'PDFJS_FONT_STYLE_TAG';
+          document.documentElement.getElementsByTagName('head')[0].appendChild(
+            styleElement);
+      }
 
       var styleSheet = styleElement.sheet;
       styleSheet.insertRule(rule, styleSheet.cssRules.length);
