@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'f98db29';
+  PDFJS.build = 'f4c16aa';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -31804,8 +31804,7 @@ var JpxImage = (function JpxImageClosure() {
                   cod.selectiveArithmeticCodingBypass ||
                   cod.resetContextProbabilities ||
                   cod.terminationOnEachCodingPass ||
-                  cod.verticalyStripe || cod.predictableTermination ||
-                  cod.segmentationSymbolUsed)
+                  cod.verticalyStripe || cod.predictableTermination)
                 throw 'Unsupported COD options: ' + uneval(cod);
 
               if (context.mainHeader)
@@ -32382,7 +32381,8 @@ var JpxImage = (function JpxImageClosure() {
     return position;
   }
   function copyCoefficients(coefficients, x0, y0, width, height,
-                            delta, mb, codeblocks, transformation) {
+                            delta, mb, codeblocks, transformation,
+                            segmentationSymbolUsed) {
     var r = 0.5; // formula (E-6)
     for (var i = 0, ii = codeblocks.length; i < ii; ++i) {
       var codeblock = codeblocks[i];
@@ -32426,6 +32426,8 @@ var JpxImage = (function JpxImageClosure() {
             break;
           case 2:
             bitModel.runCleanupPass();
+            if (segmentationSymbolUsed)
+              bitModel.checkSegmentationSymbol();
             break;
         }
         currentCodingpassType = (currentCodingpassType + 1) % 3;
@@ -32462,6 +32464,7 @@ var JpxImage = (function JpxImageClosure() {
     var scalarExpounded = quantizationParameters.scalarExpounded;
     var guardBits = quantizationParameters.guardBits;
     var transformation = codingStyleParameters.transformation;
+    var segmentationSymbolUsed = codingStyleParameters.segmentationSymbolUsed;
     var precision = context.components[c].precision;
 
     var subbandCoefficients = [];
@@ -32492,7 +32495,8 @@ var JpxImage = (function JpxImageClosure() {
 
         var coefficients = new Float32Array(width * height);
         copyCoefficients(coefficients, subband.tbx0, subband.tby0,
-          width, height, delta, mb, subband.codeblocks, transformation);
+          width, height, delta, mb, subband.codeblocks, transformation,
+          segmentationSymbolUsed);
 
         subbandCoefficients.push({
           width: width,
@@ -33195,6 +33199,14 @@ var JpxImage = (function JpxImageClosure() {
             }
           }
         }
+      },
+      checkSegmentationSymbol: function BitModel_checkSegmentationSymbol() {
+        var decoder = this.decoder;
+        var cx = this.uniformContext;
+        var symbol = (decoder.readBit(cx) << 3) | (decoder.readBit(cx) << 2) |
+                     (decoder.readBit(cx) << 1) | decoder.readBit(cx);
+        if (symbol != 0xA)
+          throw 'Invalid segmentation symbol';
       }
     };
 
