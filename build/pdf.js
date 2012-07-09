@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '164499b';
+  PDFJS.build = 'f98db29';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -34208,6 +34208,7 @@ var Jbig2Image = (function Jbig2ImageClosure() {
                 data, position, end];
         break;
       case 6: // ImmediateTextRegion
+      case 7: // ImmediateLosslessTextRegion
         var textRegion = {};
         textRegion.info = readRegionSegmentInformation(data, position);
         position += RegionSegmentInformationFieldLength;
@@ -34254,13 +34255,14 @@ var Jbig2Image = (function Jbig2ImageClosure() {
         args = [textRegion, header.referredTo, data, position, end];
         break;
       case 38: // ImmediateGenericRegion
+      case 39: // ImmediateLosslessGenericRegion
         var genericRegion = {};
         genericRegion.info = readRegionSegmentInformation(data, position);
         position += RegionSegmentInformationFieldLength;
         var genericRegionSegmentFlags = data[position++];
         genericRegion.mmr = !!(genericRegionSegmentFlags & 1);
         genericRegion.template = (genericRegionSegmentFlags >> 1) & 3;
-        genericRegion.prediction = !!(genericRegionSegmentFlags & 4);
+        genericRegion.prediction = !!(genericRegionSegmentFlags & 8);
         if (!genericRegion.mmr) {
           var atLength = genericRegion.template == 0 ? 4 : 1;
           var at = [];
@@ -34401,6 +34403,10 @@ var Jbig2Image = (function Jbig2ImageClosure() {
                                 region.at, decodingContext);
       this.drawBitmap(regionInfo, bitmap);
     },
+    onImmediateLosslessGenericRegion:
+      function SimpleSegmentVisitor_onImmediateLosslessGenericRegion() {
+      this.onImmediateGenericRegion.apply(this, arguments);
+    },
     onSymbolDictionary:
       function SimpleSegmentVisitor_onSymbolDictionary(dictionary,
                                                        currentSegment,
@@ -34449,6 +34455,10 @@ var Jbig2Image = (function Jbig2ImageClosure() {
         region.referenceCorner, region.combinationOperator, huffmanTables,
         region.refinementTemplate, region.refinementAt, decodingContext);
       this.drawBitmap(regionInfo, bitmap);
+    },
+    onImmediateLosslessTextRegion:
+      function SimpleSegmentVisitor_onImmediateLosslessTextRegion() {
+        this.onImmediateTextRegion.apply(this, arguments);
     }
   };
 
