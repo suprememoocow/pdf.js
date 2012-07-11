@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = '81bae99';
+  PDFJS.build = '4d0b478';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -16821,14 +16821,16 @@ var Font = (function FontClosure() {
             }
           }
           for (var index in newGlyphUnicodes) {
-            var unicode = newGlyphUnicodes[index];
-            if (reverseMap[unicode]) {
-              // avoiding assigning to the same unicode
-              glyphs[index].unicode = unusedUnicode++;
-              continue;
+            if (newGlyphUnicodes.hasOwnProperty(index)) {
+              var unicode = newGlyphUnicodes[index];
+              if (reverseMap[unicode]) {
+                // avoiding assigning to the same unicode
+                glyphs[index].unicode = unusedUnicode++;
+                continue;
+              }
+              glyphs[index].unicode = unicode;
+              reverseMap[unicode] = index;
             }
-            glyphs[index].unicode = unicode;
-            reverseMap[unicode] = index;
           }
           this.useToFontChar = true;
         }
