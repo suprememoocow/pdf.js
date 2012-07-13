@@ -7,7 +7,7 @@ var PDFJS = {};
   // Use strict in our context only - users might not want it
   'use strict';
 
-  PDFJS.build = 'c757eed';
+  PDFJS.build = '9c012f8';
 
   // Files are inserted below - see Makefile
 /* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
@@ -411,9 +411,14 @@ var PDFDocument = (function PDFDocumentClosure() {
       var length = this.stream.length;
       var linearization = false;
       if (length) {
-        linearization = new Linearization(this.stream);
-        if (linearization.length != length)
-          linearization = false;
+        try {
+          linearization = new Linearization(this.stream);
+          if (linearization.length != length)
+            linearization = false;
+        } catch (err) {
+          warn('The linearization data is not available ' +
+               'or unreadable pdf data is found');
+        }
       }
       // shadow the prototype getter with a data property
       return shadow(this, 'linearization', linearization);
